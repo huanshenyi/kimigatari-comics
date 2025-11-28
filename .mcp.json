@@ -1,0 +1,42 @@
+{
+    "mcpServers": {
+        "aws-knowledge-mcp-server": {
+            "command": "/Users/sh-ueda/.local/bin/uvx",
+            "args": [
+                "fastmcp",
+                "run",
+                "https://knowledge-mcp.global.api.aws"
+            ]
+        },
+        "next-devtools": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "next-devtools-mcp@latest"
+            ]
+        },
+        "mastra": {
+            "type": "stdio",
+            "command": "npx",
+            "args": [
+                "-y",
+                "@mastra/mcp-docs-server"
+            ]
+        },
+        "awslabs.cdk-mcp-server": {
+            "command": "/Users/sh-ueda/.local/bin/uvx",
+            "args": [
+                "awslabs.cdk-mcp-server@latest"
+            ],
+            "env": {
+                "FASTMCP_LOG_LEVEL": "ERROR"
+            },
+            "disabled": false,
+            "autoApprove": []
+        },
+        "tavily-remote-mcp": {
+            "command": "npx -y mcp-remote https://mcp.tavily.com/mcp/?tavilyApiKey=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",
+            "env": {}
+        }
+    }
+}
