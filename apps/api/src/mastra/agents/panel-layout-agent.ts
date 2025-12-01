@@ -1,6 +1,7 @@
 import { Agent } from "@mastra/core/agent";
 import { Memory } from "@mastra/memory";
 import { layoutCalculatorTool } from "../tools";
+import { bedrock } from "../lib/providers";
 
 export const panelLayoutAgent = new Agent({
   name: "PanelLayoutAgent",
@@ -49,7 +50,7 @@ export const panelLayoutAgent = new Agent({
 - コマの統合や分割を提案
 - 特殊なレイアウト効果を追加
 - ページ間の繋がりを調整`,
-  model: "google/gemini-2.0-flash",
+  model: bedrock("us.anthropic.claude-sonnet-4-5-20250929-v1:0"),
   tools: {
     layoutCalculator: layoutCalculatorTool,
   },

@@ -8,18 +8,22 @@ import {
   Image as ImageIcon,
   Users,
   Mountain,
-  Sparkles,
+  History,
   Trash2,
   Search,
   Grid,
   List,
-  X,
   Check,
   Loader2,
   FolderOpen,
 } from "lucide-react";
+import {
+  listAssets as listAssetsAction,
+  uploadAsset as uploadAssetAction,
+  deleteAsset as deleteAssetAction,
+} from "@/app/actions";
 
-type AssetType = "character" | "background" | "effect" | "reference";
+type AssetType = "generated" | "character" | "background" | "reference";
 
 interface Asset {
   key: string;
@@ -43,22 +47,22 @@ const assetCategories: Array<{
   description: string;
 }> = [
   {
+    id: "generated",
+    label: "生成履歴",
+    icon: History,
+    description: "AI生成画像の履歴",
+  },
+  {
     id: "character",
     label: "キャラクター",
     icon: Users,
-    description: "登場人物の参照画像",
+    description: "キャラクター参照画像",
   },
   {
     id: "background",
     label: "背景",
     icon: Mountain,
     description: "シーン背景素材",
-  },
-  {
-    id: "effect",
-    label: "エフェクト",
-    icon: Sparkles,
-    description: "集中線・効果線など",
   },
   {
     id: "reference",
@@ -84,22 +88,18 @@ export function AssetManager({
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load assets from API
+  // Load assets via Server Action
   const loadAssets = useCallback(async () => {
     setIsLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (selectedCategory) params.set("type", selectedCategory);
-      if (projectId) params.set("projectId", projectId);
+      const result = await listAssetsAction({
+        type: selectedCategory || undefined,
+        projectId: projectId || undefined,
+      });
 
-      const response = await fetch(
-        `http://localhost:4111/assets?${params.toString()}`
-      );
-
-      if (response.ok) {
-        const data = await response.json();
+      if (result.success && result.assets) {
         setAssets(
-          data.assets.map((a: Asset) => ({
+          result.assets.map((a: Asset) => ({
             ...a,
             lastModified: new Date(a.lastModified),
           }))
@@ -112,7 +112,7 @@ export function AssetManager({
     }
   }, [selectedCategory, projectId]);
 
-  // Handle file upload
+  // Handle file upload via Server Action
   const handleUpload = useCallback(
     async (files: FileList | null) => {
       if (!files || files.length === 0 || !selectedCategory) return;
@@ -128,24 +128,22 @@ export function AssetManager({
             formData.append("projectId", projectId);
           }
 
-          const response = await fetch("http://localhost:4111/assets/upload", {
-            method: "POST",
-            body: formData,
-          });
+          const result = await uploadAssetAction(formData);
 
-          if (response.ok) {
-            const result = await response.json();
+          if (result.success && result.key && result.url) {
             setAssets((prev) => [
               {
                 key: result.key,
                 url: result.url,
-                size: result.size,
+                size: result.size || 0,
                 lastModified: new Date(),
                 type: selectedCategory,
                 name: file.name,
               },
               ...prev,
             ]);
+          } else {
+            console.error("Upload failed:", result.error);
           }
         } catch (error) {
           console.error("Upload failed:", error);
@@ -160,22 +158,20 @@ export function AssetManager({
     [selectedCategory, projectId]
   );
 
-  // Handle delete
+  // Handle delete via Server Action
   const handleDelete = useCallback(async (asset: Asset) => {
     if (!confirm("この素材を削除しますか？")) return;
 
     try {
-      const response = await fetch("http://localhost:4111/assets/delete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key: asset.key }),
-      });
+      const result = await deleteAssetAction(asset.key);
 
-      if (response.ok) {
+      if (result.success) {
         setAssets((prev) => prev.filter((a) => a.key !== asset.key));
         if (selectedAsset?.key === asset.key) {
           setSelectedAsset(null);
         }
+      } else {
+        console.error("Delete failed:", result.error);
       }
     } catch (error) {
       console.error("Delete failed:", error);

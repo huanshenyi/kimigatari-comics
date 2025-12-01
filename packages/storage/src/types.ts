@@ -20,8 +20,13 @@ export interface StorageConfig {
 
 /**
  * Asset types supported by the storage system
+ *
+ * - generated: AI生成画像（生成履歴）
+ * - character: キャラクター参照画像
+ * - background: シーン背景素材
+ * - reference: その他の参照画像
  */
-export type AssetType = "character" | "background" | "effect" | "reference" | "generated";
+export type AssetType = "generated" | "character" | "background" | "reference";
 
 /**
  * Metadata for stored assets

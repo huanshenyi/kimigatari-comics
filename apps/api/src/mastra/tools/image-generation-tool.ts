@@ -1,4 +1,6 @@
 import { createTool } from "@mastra/core/tools";
+import { google } from "@ai-sdk/google";
+import { generateText } from "ai";
 import { z } from "zod";
 
 export const mangaStyleSchema = z.enum([
@@ -86,14 +88,35 @@ export const imageGenerationTool = createTool({
       type: "tool-progress",
       data: {
         status: "in-progress",
-        message: "Bedrockで画像生成中...",
+        message: "Geminiで画像生成中...",
         stage: "generating",
       },
     });
 
-    // Note: Actual Bedrock Nova Canvas implementation would go here
-    // For now, return a placeholder result
-    // In production, this would call Amazon Bedrock's Nova Canvas model
+    // Generate image using Gemini gemini-2.5-flash-image-preview
+    const result = await generateText({
+      model: google("gemini-2.5-flash-image-preview"),
+      prompt: `Generate a manga panel image with the following specifications:
+
+Style: ${fullPrompt}
+
+Important guidelines:
+- Create a black and white manga-style illustration
+- Avoid: ${finalNegativePrompt}
+- Output dimensions should be suitable for a manga panel`,
+    });
+
+    // Extract generated image from result
+    let imageBase64: string | undefined;
+    let imageUrl = "";
+
+    for (const file of result.files ?? []) {
+      if (file.mediaType.startsWith("image/")) {
+        // Create data URL for immediate use
+        imageUrl = `data:${file.mediaType};base64,${file.base64}`;
+        break;
+      }
+    }
 
     await writer?.custom({
       type: "tool-progress",
@@ -105,7 +128,8 @@ export const imageGenerationTool = createTool({
     });
 
     return {
-      imageUrl: "", // Would be S3 URL in production
+      imageUrl,
+      imageBase64,
       width,
       height,
       prompt: fullPrompt,

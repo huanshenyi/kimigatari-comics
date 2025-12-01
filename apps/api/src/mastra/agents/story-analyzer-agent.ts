@@ -1,6 +1,7 @@
 import { Agent } from "@mastra/core/agent";
 import { Memory } from "@mastra/memory";
 import { sceneParserTool } from "../tools";
+import { bedrock } from "../lib/providers";
 
 export const storyAnalyzerAgent = new Agent({
   name: "StoryAnalyzerAgent",
@@ -48,7 +49,7 @@ export const storyAnalyzerAgent = new Agent({
 - suggestedPanelCount: 推奨コマ数
 
 日本語のマンガとして自然な流れを意識してください。`,
-  model: "google/gemini-2.0-flash",
+  model: bedrock("us.anthropic.claude-sonnet-4-5-20250929-v1:0"),
   tools: {
     sceneParser: sceneParserTool,
   },

@@ -38,6 +38,8 @@ import {
   deleteSelectedObjects,
   addPage,
   loadPageState,
+  loadImageFromURL,
+  fitImageToPanel,
   type CanvasManager,
   type ToolType,
   type BubbleType,
@@ -54,6 +56,7 @@ export function MangaEditor({ pages: initialPages }: MangaEditorProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricCanvasRef = useRef<Canvas | null>(null);
   const managerRef = useRef<CanvasManager | null>(null);
+  const mouseDownPosRef = useRef<{ x: number; y: number } | null>(null);
 
   const [currentPage, setCurrentPage] = useState(0);
   const [activeTool, setActiveTool] = useState<ToolType>("select");
@@ -110,17 +113,39 @@ export function MangaEditor({ pages: initialPages }: MangaEditorProps) {
       setTimeout(refreshLayers, 0);
     });
 
-    // Load initial page data
-    if (initialPages.length > 0 && initialPages[0]?.layoutData) {
-      initialPages[0].layoutData.forEach((layout, index) => {
-        createPanel(
-          canvas,
-          layout.position,
-          `panel-${index}`,
-          layout.panelOrder
-        );
-      });
-    }
+    // Load initial page data with images
+    (async () => {
+      if (initialPages.length > 0 && initialPages[0]?.layoutData) {
+        for (const [index, layout] of initialPages[0].layoutData.entries()) {
+          // Create panel frame
+          createPanel(
+            canvas,
+            layout.position,
+            `panel-${index}`,
+            layout.panelOrder
+          );
+
+          // Load and display image if available
+          if (layout.imageUrl) {
+            try {
+              const loadedImage = await loadImageFromURL(
+                canvas,
+                layout.imageUrl,
+                `image-${index}`,
+                { selectable: false }
+              );
+              // Fit image to panel bounds
+              fitImageToPanel(loadedImage.image, layout.position);
+              // Send image behind panel frame (Fabric.js v6 API)
+              loadedImage.image.sendToBack();
+            } catch (error) {
+              console.error(`Failed to load image for panel ${index}:`, error);
+            }
+          }
+        }
+        canvas.renderAll();
+      }
+    })();
 
     return () => {
       canvas.dispose();
@@ -129,9 +154,26 @@ export function MangaEditor({ pages: initialPages }: MangaEditorProps) {
     };
   }, []);
 
+  // Handle mouse down to track position for drag detection
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    mouseDownPosRef.current = { x: e.clientX, y: e.clientY };
+  }, []);
+
   // Handle tool actions
   const handleCanvasClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
+      // Check if mouse moved significantly (drag detection)
+      if (mouseDownPosRef.current) {
+        const dx = Math.abs(e.clientX - mouseDownPosRef.current.x);
+        const dy = Math.abs(e.clientY - mouseDownPosRef.current.y);
+        if (dx > 5 || dy > 5) {
+          // Mouse moved more than 5px, this was a drag, not a click
+          mouseDownPosRef.current = null;
+          return;
+        }
+      }
+      mouseDownPosRef.current = null;
+
       const canvas = fabricCanvasRef.current;
       const manager = managerRef.current;
       if (!canvas || !manager) return;
@@ -203,7 +245,7 @@ export function MangaEditor({ pages: initialPages }: MangaEditorProps) {
   };
 
   // Delete handler
-  const handleDelete = () => {
+  const handleDelete = useCallback(() => {
     const canvas = fabricCanvasRef.current;
     const manager = managerRef.current;
     if (canvas && manager) {
@@ -211,7 +253,25 @@ export function MangaEditor({ pages: initialPages }: MangaEditorProps) {
       deleteSelectedObjects(canvas);
       setSelectedElement(null);
     }
-  };
+  }, []);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Delete or Backspace で選択要素を削除
+      if ((e.key === "Delete" || e.key === "Backspace") && selectedElement) {
+        // テキスト入力中は無視
+        if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+          return;
+        }
+        e.preventDefault();
+        handleDelete();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedElement, handleDelete]);
 
   // Page navigation
   const handlePrevPage = () => {
@@ -416,6 +476,7 @@ export function MangaEditor({ pages: initialPages }: MangaEditorProps) {
         <div
           ref={canvasContainerRef}
           className="flex-1 flex items-center justify-center bg-muted/20 overflow-auto p-8"
+          onMouseDown={handleMouseDown}
           onClick={activeTool !== "select" ? handleCanvasClick : undefined}
         >
           <div className="shadow-dramatic rounded manga-frame bg-[hsl(var(--washi))]">
@@ -460,7 +521,7 @@ export function MangaEditor({ pages: initialPages }: MangaEditorProps) {
 
         {/* Layer Panel */}
         {showLayerPanel && (
-          <div className="paper-card rounded-lg flex-1 min-h-0 overflow-hidden">
+          <div className="paper-card rounded-lg flex-1 min-h-[200px] max-h-[300px] overflow-auto">
             <LayerPanel
               canvas={fabricCanvasRef.current}
               layers={layers}

@@ -13,29 +13,31 @@ import {
 interface GenerationProgressProps {
   progress: number;
   currentStep: string;
+  currentStepId: string | null;
+  completedSteps: string[];
 }
 
 const steps = [
   {
-    id: "analyze",
+    id: "analyze-story",
     label: "プロット解析",
     description: "物語を分析中...",
     icon: BookOpen,
   },
   {
-    id: "layout",
+    id: "generate-layouts",
     label: "レイアウト生成",
     description: "コマ割りを設計中...",
     icon: Layers,
   },
   {
-    id: "image",
+    id: "generate-images",
     label: "画像生成",
     description: "イラストを描画中...",
     icon: ImageIcon,
   },
   {
-    id: "text",
+    id: "place-text",
     label: "テキスト配置",
     description: "吹き出しを配置中...",
     icon: MessageSquare,
@@ -45,16 +47,14 @@ const steps = [
 export function GenerationProgress({
   progress,
   currentStep,
+  currentStepId,
+  completedSteps,
 }: GenerationProgressProps) {
-  const getCurrentStepIndex = () => {
-    if (currentStep.includes("解析")) return 0;
-    if (currentStep.includes("レイアウト")) return 1;
-    if (currentStep.includes("画像")) return 2;
-    if (currentStep.includes("テキスト") || currentStep.includes("完了")) return 3;
-    return 0;
+  const getStepState = (stepId: string) => {
+    if (completedSteps.includes(stepId)) return "completed";
+    if (currentStepId === stepId) return "current";
+    return "pending";
   };
-
-  const currentStepIndex = getCurrentStepIndex();
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -110,11 +110,12 @@ export function GenerationProgress({
 
           {/* Steps */}
           <div className="space-y-3">
-            {steps.map((step, index) => {
+            {steps.map((step) => {
               const StepIcon = step.icon;
-              const isCompleted = index < currentStepIndex;
-              const isCurrent = index === currentStepIndex;
-              const isPending = index > currentStepIndex;
+              const state = getStepState(step.id);
+              const isCompleted = state === "completed";
+              const isCurrent = state === "current";
+              const isPending = state === "pending";
 
               return (
                 <div

@@ -62,6 +62,7 @@ export const panelLayoutSchema = z.object({
   panelOrder: z.number(),
   position: positionSchema,
   sceneDescription: z.string().optional(),
+  imageUrl: z.string().optional(),
 });
 export type PanelLayout = z.infer<typeof panelLayoutSchema>;
 

@@ -1,6 +1,7 @@
 import { Agent } from "@mastra/core/agent";
 import { Memory } from "@mastra/memory";
 import { textPlacementTool } from "../tools";
+import {bedrock} from "../lib/providers"
 
 export const textPlacementAgent = new Agent({
   name: "TextPlacementAgent",
@@ -78,7 +79,7 @@ export const textPlacementAgent = new Agent({
 - 重なりを解消
 - 読み順を最適化
 - 視覚的なバランスを調整`,
-  model: "google/gemini-2.0-flash",
+  model: bedrock("us.anthropic.claude-sonnet-4-5-20250929-v1:0"),
   tools: {
     textPlacement: textPlacementTool,
   },

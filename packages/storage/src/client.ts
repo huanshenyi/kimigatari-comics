@@ -19,9 +19,10 @@ import type {
  * Get storage configuration from environment variables
  */
 export function getStorageConfig(): StorageConfig {
-  const isLocal = process.env.NODE_ENV === "development" || !process.env.AWS_ACCESS_KEY_ID;
+  // MINIO_ENDPOINTが設定されていればMinIOを使用（開発環境）
+  const useMinIO = process.env.MINIO_ENDPOINT || process.env.NODE_ENV === "development" || !process.env.AWS_ACCESS_KEY_ID;
 
-  if (isLocal) {
+  if (useMinIO) {
     // MinIO (local development)
     return {
       endpoint: process.env.MINIO_ENDPOINT || "http://localhost:9000",
@@ -49,6 +50,16 @@ export function getStorageConfig(): StorageConfig {
 /**
  * S3-compatible storage client for managing assets
  */
+/**
+ * Mapping from asset type to S3 prefix
+ */
+const ASSET_TYPE_PREFIX: Record<AssetType, string> = {
+  generated: "generated",
+  character: "characters",
+  background: "backgrounds",
+  reference: "reference",
+};
+
 export class StorageClient {
   private client: S3Client;
   private config: StorageConfig;
@@ -67,6 +78,13 @@ export class StorageClient {
   }
 
   /**
+   * Get S3 prefix for asset type
+   */
+  private getPrefix(type: AssetType): string {
+    return ASSET_TYPE_PREFIX[type];
+  }
+
+  /**
    * Generate a unique key for an asset
    */
   private generateKey(
@@ -82,7 +100,7 @@ export class StorageClient {
       .replace(/[^a-zA-Z0-9_-]/g, "_")
       .substring(0, 32);
 
-    const parts = [type];
+    const parts: string[] = [this.getPrefix(type)];
     if (projectId) {
       parts.push(projectId);
     }
@@ -222,10 +240,10 @@ export class StorageClient {
   async list(options?: ListAssetsOptions): Promise<ListAssetsResult> {
     let prefix = options?.prefix || "";
     if (options?.type && !prefix) {
-      prefix = `${options.type}/`;
+      prefix = `${this.getPrefix(options.type)}/`;
     }
     if (options?.projectId && options?.type) {
-      prefix = `${options.type}/${options.projectId}/`;
+      prefix = `${this.getPrefix(options.type)}/${options.projectId}/`;
     }
 
     const command = new ListObjectsV2Command({

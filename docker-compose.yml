@@ -10,6 +10,7 @@ services:
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_API_CORS_ALLOW_ORIGIN: "*"
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"
@@ -20,6 +21,12 @@ services:
       retries: 5
 
   # MinIO初期化（バケット作成）
+  # S3構造:
+  #   kimigatari-assets/
+  #   ├── generated/    # AI生成画像
+  #   ├── characters/   # キャラクター参照画像
+  #   ├── backgrounds/  # 背景素材
+  #   └── reference/    # その他参照画像
   minio-init:
     image: minio/mc:latest
     container_name: kimigatari-minio-init
@@ -31,7 +38,8 @@ services:
       mc alias set myminio http://minio:9000 minioadmin minioadmin;
       mc mb myminio/kimigatari-assets --ignore-existing;
       mc anonymous set download myminio/kimigatari-assets;
-      echo 'Bucket created and configured';
+      echo 'Bucket kimigatari-assets created and configured';
+      echo 'Prefixes: generated/, characters/, backgrounds/, reference/';
       exit 0;
       "
 

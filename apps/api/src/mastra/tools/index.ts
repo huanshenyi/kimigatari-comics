@@ -12,3 +12,8 @@ export {
   textPlacementTool,
   textPlacementResultSchema,
 } from "./text-placement-tool";
+export {
+  novaCanvasTool,
+  novaCanvasResultSchema,
+  novaCanvasStyleSchema,
+} from "./nova-canvas-tool";

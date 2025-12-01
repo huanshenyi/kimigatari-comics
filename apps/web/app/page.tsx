@@ -53,6 +53,8 @@ export default function Home() {
   const [pages, setPages] = useState<Page[]>([]);
   const [progress, setProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState("");
+  const [currentStepId, setCurrentStepId] = useState<string | null>(null);
+  const [completedSteps, setCompletedSteps] = useState<string[]>([]);
   const [selectedAssets, setSelectedAssets] = useState<SelectedAssetsState>({
     characters: [],
     backgrounds: [],
@@ -85,18 +87,20 @@ export default function Home() {
     setCurrentStep("プロット解析中...");
 
     try {
-      const response = await fetch("http://localhost:4111/api/workflows/mangaGeneration/start", {
+      const response = await fetch("http://localhost:4111/workflow/mangaGeneration", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          plot,
-          title: title || "無題",
-          targetPageCount: projectType === "single" ? 1 : 4,
-          assets: {
-            characters: selectedAssets.characters.map((a) => a.url),
-            backgrounds: selectedAssets.backgrounds.map((a) => a.url),
+          inputData: {
+            plot,
+            title: title || "無題",
+            targetPageCount: projectType === "single" ? 1 : 4,
+            assets: {
+              characters: selectedAssets.characters.map((a) => a.url),
+              backgrounds: selectedAssets.backgrounds.map((a) => a.url),
+            },
           },
         }),
       });
@@ -114,17 +118,46 @@ export default function Home() {
           if (done) break;
 
           const text = decoder.decode(value);
+          console.log("Raw text received:", text); // Debug raw response
           const lines = text.split("\n").filter((line) => line.trim());
+          console.log("Lines:", lines); // Debug parsed lines
 
           for (const line of lines) {
+            // SSE形式: "data: {...}" から "data: " プレフィックスを除去
+            if (!line.startsWith("data: ")) continue;
+            const jsonStr = line.slice(6); // "data: " (6文字) を除去
+            if (jsonStr === "[DONE]") continue; // 終了マーカーをスキップ
+
             try {
-              const data = JSON.parse(line);
+              const data = JSON.parse(jsonStr);
+              console.log("Received data:", data); // Debug log
+
               if (data.type === "progress") {
-                setProgress(data.data.progress || 0);
-                setCurrentStep(data.data.message || "");
+                const { stepId, status, message, progress: stepProgress } = data.data;
+
+                // Track step progress by ID
+                if (stepId) {
+                  setCurrentStepId(stepId);
+
+                  if (status === "completed") {
+                    setCompletedSteps((prev) =>
+                      prev.includes(stepId) ? prev : [...prev, stepId]
+                    );
+                  }
+                }
+
+                setProgress(stepProgress || 0);
+                setCurrentStep(message || "");
               }
-              if (data.pages) {
-                setPages(data.pages);
+              // Check for step completion with pages
+              if (data.type === "data-workflow") {
+                const generateImageStep = data.data?.steps?.["generate-image"];
+                if (generateImageStep?.status === "success" && generateImageStep?.output?.pages) {
+                  console.log("Found pages in workflow output:", generateImageStep.output.pages);
+                  setPages(generateImageStep.output.pages);
+                  setAppState("editing");
+                  return; // 成功したら関数を終了
+                }
               }
             } catch {
               // Ignore parse errors for incomplete chunks
@@ -132,8 +165,6 @@ export default function Home() {
           }
         }
       }
-
-      setAppState("editing");
     } catch (error) {
       console.error("Generation error:", error);
       setAppState("input");
@@ -145,6 +176,8 @@ export default function Home() {
     setPages([]);
     setPlot("");
     setTitle("");
+    setCurrentStepId(null);
+    setCompletedSteps([]);
     setSelectedAssets({ characters: [], backgrounds: [] });
   };
 
@@ -167,7 +200,7 @@ export default function Home() {
                 </div>
                 <div>
                   <h1 className="headline-editorial text-xl tracking-tight">
-                    君語り<span className="text-primary">コミックス</span>
+                    キミガタリ<span className="text-primary">コミックス</span>
                   </h1>
                   <p className="text-xs text-muted-foreground tracking-wider">
                     AI MANGA GENERATOR
@@ -303,11 +336,10 @@ export default function Home() {
                       <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
                       <div className="absolute bottom-0 left-0 right-0 p-4">
                         <span
-                          className={`inline-block text-xs px-2 py-0.5 rounded mb-2 ${
-                            project.type === "story"
+                          className={`inline-block text-xs px-2 py-0.5 rounded mb-2 ${project.type === "story"
                               ? "bg-[hsl(var(--ai))]/20 text-[hsl(var(--ai))]"
                               : "bg-primary/20 text-primary"
-                          }`}
+                            }`}
                         >
                           {project.type === "story" ? "ストーリー" : "一枚"}
                         </span>
@@ -356,7 +388,7 @@ export default function Home() {
           <div className="container mx-auto px-6">
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <p>Powered by Mastra AI</p>
-              <p>君語りコミックス © 2024</p>
+              <p>キミガタリコミックス © 2024</p>
             </div>
           </div>
         </footer>
@@ -384,7 +416,7 @@ export default function Home() {
                 <BookOpen className="w-4 h-4 text-primary" />
               </div>
               <span className="headline-editorial text-lg">
-                君語り<span className="text-primary">コミックス</span>
+                キミガタリ<span className="text-primary">コミックス</span>
               </span>
             </button>
 
@@ -428,10 +460,15 @@ export default function Home() {
         )}
 
         {appState === "generating" && (
-          <GenerationProgress progress={progress} currentStep={currentStep} />
+          <GenerationProgress
+            progress={progress}
+            currentStep={currentStep}
+            currentStepId={currentStepId}
+            completedSteps={completedSteps}
+          />
         )}
 
-        {appState === "editing" && <MangaEditor pages={pages} />}
+        {appState === "editing" && pages.length > 0 && <MangaEditor pages={pages} />}
 
         {appState === "assets" && (
           <div className="h-[calc(100vh-140px)]">
