@@ -76,3 +76,15 @@ export {
   clearImageFilters,
   type LoadedImage,
 } from "./image-loader";
+
+// Eraser Manager
+export {
+  initializeEraser,
+  startErasing,
+  stopErasing,
+  setEraserSize,
+  setEraserInverted,
+  setObjectErasable,
+  setAllImagesErasable,
+  EraserBrush,
+} from "./eraser-manager";

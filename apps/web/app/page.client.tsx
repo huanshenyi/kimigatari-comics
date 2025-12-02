@@ -69,9 +69,9 @@ export function HomeClient({ projects }: HomeClientProps) {
 
   return (
     <>
-      <div className="flex h-screen bg-background">
+      <div className="flex h-full bg-background">
         {/* Sidebar */}
-        <aside className="w-60 border-r border-border/50 flex flex-col bg-card/30">
+        <aside className="w-60 border-r border-border/50 flex flex-col bg-card/30 flex-shrink-0">
           {/* Logo */}
           <div className="p-4 border-b border-border/50">
             <h1 className="headline-editorial text-lg">キミガタリ</h1>

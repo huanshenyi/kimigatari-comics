@@ -15,6 +15,7 @@ import {
   Layers,
   Settings2,
   MousePointer2,
+  Eraser,
 } from "lucide-react";
 import type { PageRow } from "@kimigatari/db";
 import {
@@ -31,10 +32,17 @@ import {
   loadImageFromURL,
   fitImageToPanel,
   exportToDataURL,
+  initializeEraser,
+  startErasing,
+  stopErasing,
+  setEraserSize,
+  setEraserInverted,
+  setAllImagesErasable,
   type CanvasManager,
   type ToolType,
   type BubbleType,
   DEFAULT_CANVAS_CONFIG,
+  EraserBrush,
 } from "@kimigatari/canvas";
 import { LayerPanel, useLayerManager } from "./layer-panel";
 
@@ -55,12 +63,15 @@ export const MangaEditorSingle = forwardRef<MangaEditorHandle, MangaEditorSingle
   const fabricCanvasRef = useRef<Canvas | null>(null);
   const managerRef = useRef<CanvasManager | null>(null);
   const mouseDownPosRef = useRef<{ x: number; y: number } | null>(null);
+  const eraserRef = useRef<EraserBrush | null>(null);
 
   const [activeTool, setActiveTool] = useState<ToolType>("select");
   const [zoom, setZoomState] = useState(100);
   const [selectedElement, setSelectedElement] = useState<string | null>(null);
   const [bubbleType, setBubbleType] = useState<BubbleType>("normal");
   const [showLayerPanel, setShowLayerPanel] = useState(true);
+  const [eraserSize, setEraserSizeState] = useState(20);
+  const [isEraserInverted, setIsEraserInverted] = useState(false);
 
   // Layer management
   const {
@@ -109,10 +120,15 @@ export const MangaEditorSingle = forwardRef<MangaEditorHandle, MangaEditorSingle
       setTimeout(refreshLayers, 0);
     });
 
+    // Initialize eraser
+    const eraser = initializeEraser(canvas, 20);
+    eraserRef.current = eraser;
+
     return () => {
       canvas.dispose();
       fabricCanvasRef.current = null;
       managerRef.current = null;
+      eraserRef.current = null;
     };
   }, [refreshLayers]);
 
@@ -169,6 +185,37 @@ export const MangaEditorSingle = forwardRef<MangaEditorHandle, MangaEditorSingle
       })();
     }
   }, [page, refreshLayers]);
+
+  // Handle eraser tool activation/deactivation
+  useEffect(() => {
+    const canvas = fabricCanvasRef.current;
+    const eraser = eraserRef.current;
+    if (!canvas) return;
+
+    if (activeTool === "eraser" && eraser) {
+      // 画像を消しゴムで消せるように設定
+      setAllImagesErasable(canvas, true);
+      startErasing(canvas, eraser);
+    } else {
+      stopErasing(canvas);
+    }
+  }, [activeTool]);
+
+  // Handle eraser size change
+  const handleEraserSizeChange = useCallback((size: number) => {
+    setEraserSizeState(size);
+    if (eraserRef.current) {
+      setEraserSize(eraserRef.current, size);
+    }
+  }, []);
+
+  // Handle eraser mode toggle (erase / restore)
+  const handleEraserModeToggle = useCallback((inverted: boolean) => {
+    setIsEraserInverted(inverted);
+    if (eraserRef.current) {
+      setEraserInverted(eraserRef.current, inverted);
+    }
+  }, []);
 
   // Handle mouse down to track position for drag detection
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -294,6 +341,7 @@ export const MangaEditorSingle = forwardRef<MangaEditorHandle, MangaEditorSingle
     { id: "panel" as ToolType, icon: Square, label: "枠 (P)" },
     { id: "bubble" as ToolType, icon: MessageSquare, label: "吹き出し (B)" },
     { id: "text" as ToolType, icon: Type, label: "テキスト (T)" },
+    { id: "eraser" as ToolType, icon: Eraser, label: "消しゴム (E)" },
   ];
 
   const bubbleTypes: { id: BubbleType; label: string }[] = [
@@ -409,11 +457,11 @@ export const MangaEditorSingle = forwardRef<MangaEditorHandle, MangaEditorSingle
         {/* Canvas */}
         <div
           ref={canvasContainerRef}
-          className="flex-1 flex items-center justify-center bg-muted/20 overflow-auto p-8"
+          className="flex-1 flex items-start bg-muted/20 overflow-auto p-8"
           onMouseDown={handleMouseDown}
           onClick={activeTool !== "select" ? handleCanvasClick : undefined}
         >
-          <div className="shadow-dramatic rounded manga-frame bg-[hsl(var(--washi))]">
+          <div className="shadow-dramatic rounded manga-frame bg-[hsl(var(--washi))] m-auto">
             <canvas ref={canvasRef} style={{ imageRendering: "crisp-edges" }} />
           </div>
         </div>
@@ -460,6 +508,63 @@ export const MangaEditorSingle = forwardRef<MangaEditorHandle, MangaEditorSingle
                   {type.label}
                 </button>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Eraser Settings */}
+        {activeTool === "eraser" && (
+          <div className="paper-card rounded-lg p-3">
+            <h3 className="text-xs font-medium text-muted-foreground mb-3 flex items-center gap-2">
+              <Eraser className="w-3 h-3" />
+              消しゴム設定
+            </h3>
+            <div className="space-y-3">
+              {/* Mode Toggle */}
+              <div className="flex gap-1">
+                <button
+                  className={`flex-1 px-3 py-2 rounded text-sm transition-colors ${
+                    !isEraserInverted
+                      ? "bg-primary text-primary-foreground"
+                      : "hover:bg-muted"
+                  }`}
+                  onClick={() => handleEraserModeToggle(false)}
+                >
+                  消す
+                </button>
+                <button
+                  className={`flex-1 px-3 py-2 rounded text-sm transition-colors ${
+                    isEraserInverted
+                      ? "bg-green-600 text-white"
+                      : "hover:bg-muted"
+                  }`}
+                  onClick={() => handleEraserModeToggle(true)}
+                >
+                  復元
+                </button>
+              </div>
+
+              {/* Size Slider */}
+              <div>
+                <div className="flex items-center justify-between text-sm mb-1">
+                  <span className="text-muted-foreground">サイズ:</span>
+                  <span className="font-medium">{eraserSize}px</span>
+                </div>
+                <input
+                  type="range"
+                  min="5"
+                  max="100"
+                  value={eraserSize}
+                  onChange={(e) => handleEraserSizeChange(Number(e.target.value))}
+                  className="w-full"
+                />
+              </div>
+
+              <p className="text-xs text-muted-foreground">
+                {isEraserInverted
+                  ? "消した部分をドラッグで復元"
+                  : "画像の上をドラッグして消去"}
+              </p>
             </div>
           </div>
         )}

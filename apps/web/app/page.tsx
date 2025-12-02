@@ -15,9 +15,9 @@ export default async function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-background">
+    <div className="flex flex-col h-screen bg-background">
       {/* Editorial Header */}
-      <header className="border-b border-border/50">
+      <header className="border-b border-border/50 flex-shrink-0">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -39,10 +39,12 @@ export default async function Home() {
       </header>
 
       {/* Client Component for interactive parts */}
-      <HomeClient projects={projects} />
+      <div className="flex-1 overflow-hidden">
+        <HomeClient projects={projects} />
+      </div>
 
       {/* Footer */}
-      <footer className="border-t border-border/50 py-6">
+      <footer className="border-t border-border/50 py-6 flex-shrink-0">
         <div className="container mx-auto px-6">
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <p>Powered by Mastra AI</p>
@@ -50,6 +52,6 @@ export default async function Home() {
           </div>
         </div>
       </footer>
-    </main>
+    </div>
   );
 }
