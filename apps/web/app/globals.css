@@ -7,45 +7,87 @@
 
 @layer base {
   :root {
-    /* Ink & Story - Editorial Manga Theme */
-    --background: 10 10% 4%;
-    --foreground: 40 30% 92%;
+    /* Washi & Sumi - Light Editorial Manga Theme */
+    /* 和紙（白）をベースに、墨（黒）とガラス効果 */
 
-    /* Washi paper colors */
-    --card: 40 25% 8%;
-    --card-foreground: 40 30% 92%;
+    --background: 43 30% 96%;
+    --foreground: 20 15% 10%;
 
-    --popover: 40 25% 6%;
-    --popover-foreground: 40 30% 92%;
+    /* Glass card - frosted effect with light base */
+    --card: 0 0% 100%;
+    --card-foreground: 20 15% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 20 15% 10%;
 
     /* Shu-iro (朱色) - Japanese vermilion accent */
-    --primary: 356 60% 50%;
-    --primary-foreground: 40 30% 96%;
+    --primary: 356 65% 45%;
+    --primary-foreground: 0 0% 100%;
 
-    /* Subtle ink wash */
-    --secondary: 40 10% 14%;
-    --secondary-foreground: 40 30% 92%;
+    /* Subtle gray for secondary elements */
+    --secondary: 40 10% 92%;
+    --secondary-foreground: 20 15% 20%;
 
-    --muted: 40 10% 12%;
+    --muted: 40 15% 94%;
+    --muted-foreground: 20 10% 45%;
+
+    --accent: 356 65% 45%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 20 10% 85%;
+    --input: 40 15% 94%;
+    --ring: 356 65% 45%;
+    --radius: 0.375rem;
+
+    /* Custom semantic colors */
+    --sumi: 20 15% 8%;
+    --washi: 43 35% 96%;
+    --shu: 356 65% 45%;
+    --ai: 211 55% 45%;
+    --gold: 45 85% 50%;
+
+    /* Glass effect variables */
+    --glass-bg: 0 0% 100% / 0.7;
+    --glass-border: 20 10% 80%;
+  }
+
+  /* Dark mode - Sumi base with washi accents */
+  .dark {
+    --background: 20 15% 8%;
+    --foreground: 43 30% 92%;
+
+    --card: 20 12% 12%;
+    --card-foreground: 43 30% 92%;
+
+    --popover: 20 12% 10%;
+    --popover-foreground: 43 30% 92%;
+
+    --primary: 356 60% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 20 10% 18%;
+    --secondary-foreground: 43 30% 90%;
+
+    --muted: 20 10% 15%;
     --muted-foreground: 40 15% 55%;
 
-    --accent: 356 60% 50%;
-    --accent-foreground: 40 30% 96%;
+    --accent: 356 60% 55%;
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 70% 45%;
-    --destructive-foreground: 40 30% 96%;
+    --destructive: 0 65% 50%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 40 10% 18%;
-    --input: 40 10% 15%;
-    --ring: 356 60% 50%;
-    --radius: 0.25rem;
+    --border: 20 10% 22%;
+    --input: 20 10% 18%;
+    --ring: 356 60% 55%;
 
-    /* Custom colors */
-    --sumi: 10 10% 4%;
+    --sumi: 20 15% 5%;
     --washi: 43 35% 93%;
-    --shu: 356 60% 50%;
-    --ai: 211 50% 35%;
-    --gold: 45 80% 55%;
+    --glass-bg: 20 12% 12% / 0.8;
+    --glass-border: 20 10% 25%;
   }
 }
 
@@ -61,11 +103,11 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-family: 'Zen Kaku Gothic New', sans-serif;
+    /* Subtle washi paper texture */
     background-image:
-      radial-gradient(ellipse at 20% 0%, hsl(356 60% 50% / 0.03) 0%, transparent 50%),
-      radial-gradient(ellipse at 80% 100%, hsl(211 50% 35% / 0.02) 0%, transparent 50%),
-      url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-    background-blend-mode: overlay;
+      radial-gradient(ellipse at 0% 0%, hsl(var(--shu) / 0.03) 0%, transparent 40%),
+      radial-gradient(ellipse at 100% 100%, hsl(var(--ai) / 0.03) 0%, transparent 40%),
+      url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.02'/%3E%3C/svg%3E");
   }
 
   /* Custom scrollbar */
@@ -119,12 +161,12 @@
     opacity: 0.8;
   }
 
-  /* Manga panel frame */
+  /* Manga panel frame - sumi ink border */
   .manga-frame {
-    border: 3px solid hsl(var(--foreground));
+    border: 2px solid hsl(var(--sumi));
     box-shadow:
-      4px 4px 0 0 hsl(var(--foreground) / 0.2),
-      inset 0 0 0 1px hsl(var(--foreground) / 0.1);
+      0 8px 32px -8px hsl(var(--sumi) / 0.2),
+      inset 0 0 0 1px hsl(0 0% 100% / 0.5);
   }
 
   /* Ink splash decoration */
@@ -146,11 +188,15 @@
     pointer-events: none;
   }
 
-  /* Paper texture card */
+  /* Glass card with frosted effect */
   .paper-card {
-    background:
-      linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--card) / 0.95) 100%);
-    border: 1px solid hsl(var(--border));
+    background: hsl(var(--glass-bg));
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid hsl(var(--glass-border));
+    box-shadow:
+      0 4px 24px -4px hsl(var(--sumi) / 0.08),
+      0 0 0 1px hsl(0 0% 100% / 0.5) inset;
     position: relative;
     overflow: hidden;
   }
@@ -159,8 +205,16 @@
     content: '';
     position: absolute;
     inset: 0;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.015'/%3E%3C/svg%3E");
     pointer-events: none;
+  }
+
+  /* Solid sumi card variant */
+  .sumi-card {
+    background: hsl(var(--sumi));
+    color: hsl(var(--washi));
+    border: 1px solid hsl(var(--sumi));
+    box-shadow: 0 8px 32px -8px hsl(var(--sumi) / 0.4);
   }
 
   /* Diagonal grid background */
