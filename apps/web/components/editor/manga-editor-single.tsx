@@ -1,14 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, forwardRef, useImperativeHandle } from "react";
 import { Canvas } from "fabric";
 import { Button } from "@/components/ui/button";
 import {
-  ChevronLeft,
-  ChevronRight,
-  Download,
   MessageSquare,
-  Move,
   Square,
   Type,
   ZoomIn,
@@ -16,13 +12,11 @@ import {
   Undo2,
   Redo2,
   Trash2,
-  Plus,
   Layers,
-  Grip,
   Settings2,
   MousePointer2,
 } from "lucide-react";
-import type { Page } from "@kimigatari/types";
+import type { PageRow } from "@kimigatari/db";
 import {
   initializeCanvas,
   createCanvasManager,
@@ -33,13 +27,10 @@ import {
   undo,
   redo,
   setZoom,
-  getZoom,
-  exportToDataURL,
   deleteSelectedObjects,
-  addPage,
-  loadPageState,
   loadImageFromURL,
   fitImageToPanel,
+  exportToDataURL,
   type CanvasManager,
   type ToolType,
   type BubbleType,
@@ -47,22 +38,27 @@ import {
 } from "@kimigatari/canvas";
 import { LayerPanel, useLayerManager } from "./layer-panel";
 
-interface MangaEditorProps {
-  pages: Page[];
+// エクスポート用のハンドル型
+export interface MangaEditorHandle {
+  exportCanvas: () => string | null;
 }
 
-export function MangaEditor({ pages: initialPages }: MangaEditorProps) {
+interface MangaEditorSingleProps {
+  page: PageRow;
+  onPageUpdate?: (updates: Partial<PageRow>) => void;
+}
+
+export const MangaEditorSingle = forwardRef<MangaEditorHandle, MangaEditorSingleProps>(
+  function MangaEditorSingle({ page, onPageUpdate }, ref) {
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricCanvasRef = useRef<Canvas | null>(null);
   const managerRef = useRef<CanvasManager | null>(null);
   const mouseDownPosRef = useRef<{ x: number; y: number } | null>(null);
 
-  const [currentPage, setCurrentPage] = useState(0);
   const [activeTool, setActiveTool] = useState<ToolType>("select");
   const [zoom, setZoomState] = useState(100);
   const [selectedElement, setSelectedElement] = useState<string | null>(null);
-  const [totalPages, setTotalPages] = useState(initialPages.length || 1);
   const [bubbleType, setBubbleType] = useState<BubbleType>("normal");
   const [showLayerPanel, setShowLayerPanel] = useState(true);
 
@@ -105,7 +101,7 @@ export function MangaEditor({ pages: initialPages }: MangaEditorProps) {
       setSelectedElement(null);
     });
 
-    // Refresh layers when objects are added/removed/modified
+    // Refresh layers when objects are added/removed
     canvas.on("object:added", () => {
       setTimeout(refreshLayers, 0);
     });
@@ -113,46 +109,66 @@ export function MangaEditor({ pages: initialPages }: MangaEditorProps) {
       setTimeout(refreshLayers, 0);
     });
 
-    // Load initial page data with images
-    (async () => {
-      if (initialPages.length > 0 && initialPages[0]?.layoutData) {
-        for (const [index, layout] of initialPages[0].layoutData.entries()) {
-          // Create panel frame
-          createPanel(
-            canvas,
-            layout.position,
-            `panel-${index}`,
-            layout.panelOrder
-          );
+    return () => {
+      canvas.dispose();
+      fabricCanvasRef.current = null;
+      managerRef.current = null;
+    };
+  }, [refreshLayers]);
 
-          // Load and display image if available
+  // 親から呼び出し可能なメソッドを公開
+  useImperativeHandle(ref, () => ({
+    exportCanvas: () => {
+      const canvas = fabricCanvasRef.current;
+      if (!canvas) return null;
+      return exportToDataURL(canvas, "png");
+    },
+  }), []);
+
+  // Load page data when page changes
+  useEffect(() => {
+    const canvas = fabricCanvasRef.current;
+    if (!canvas || !page) return;
+
+    // Clear existing objects
+    canvas.clear();
+    canvas.backgroundColor = "#ffffff";
+
+    // Load layout data
+    const layoutData = page.layout_data as Array<{
+      position: { x: number; y: number; width: number; height: number };
+      panelOrder: number;
+      imageUrl?: string;
+    }> | null;
+
+    if (layoutData && Array.isArray(layoutData)) {
+      (async () => {
+        for (const [index, layout] of layoutData.entries()) {
+          // Load and display image if available (no panel frame needed for single-page manga)
           if (layout.imageUrl) {
             try {
               const loadedImage = await loadImageFromURL(
                 canvas,
                 layout.imageUrl,
                 `image-${index}`,
-                { selectable: false }
+                { selectable: true }
               );
-              // Fit image to panel bounds
+              // Position the image
+              loadedImage.image.set({
+                left: layout.position.x,
+                top: layout.position.y,
+              });
               fitImageToPanel(loadedImage.image, layout.position);
-              // Send image behind panel frame (Fabric.js v6 API)
-              loadedImage.image.sendToBack();
             } catch (error) {
               console.error(`Failed to load image for panel ${index}:`, error);
             }
           }
         }
         canvas.renderAll();
-      }
-    })();
-
-    return () => {
-      canvas.dispose();
-      fabricCanvasRef.current = null;
-      managerRef.current = null;
-    };
-  }, []);
+        refreshLayers();
+      })();
+    }
+  }, [page, refreshLayers]);
 
   // Handle mouse down to track position for drag detection
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -167,7 +183,6 @@ export function MangaEditor({ pages: initialPages }: MangaEditorProps) {
         const dx = Math.abs(e.clientX - mouseDownPosRef.current.x);
         const dy = Math.abs(e.clientY - mouseDownPosRef.current.y);
         if (dx > 5 || dy > 5) {
-          // Mouse moved more than 5px, this was a drag, not a click
           mouseDownPosRef.current = null;
           return;
         }
@@ -258,10 +273,11 @@ export function MangaEditor({ pages: initialPages }: MangaEditorProps) {
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Delete or Backspace で選択要素を削除
       if ((e.key === "Delete" || e.key === "Backspace") && selectedElement) {
-        // テキスト入力中は無視
-        if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        if (
+          e.target instanceof HTMLInputElement ||
+          e.target instanceof HTMLTextAreaElement
+        ) {
           return;
         }
         e.preventDefault();
@@ -273,48 +289,9 @@ export function MangaEditor({ pages: initialPages }: MangaEditorProps) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [selectedElement, handleDelete]);
 
-  // Page navigation
-  const handlePrevPage = () => {
-    const manager = managerRef.current;
-    if (manager && currentPage > 0) {
-      loadPageState(manager, currentPage - 1);
-      setCurrentPage(currentPage - 1);
-    }
-  };
-
-  const handleNextPage = () => {
-    const manager = managerRef.current;
-    if (manager && currentPage < totalPages - 1) {
-      loadPageState(manager, currentPage + 1);
-      setCurrentPage(currentPage + 1);
-    }
-  };
-
-  const handleAddPage = () => {
-    const manager = managerRef.current;
-    if (manager) {
-      const newIndex = addPage(manager);
-      setTotalPages(manager.pages.length);
-      loadPageState(manager, newIndex);
-      setCurrentPage(newIndex);
-    }
-  };
-
-  // Export handler
-  const handleExport = () => {
-    const canvas = fabricCanvasRef.current;
-    if (!canvas) return;
-
-    const dataURL = exportToDataURL(canvas, "png");
-    const link = document.createElement("a");
-    link.download = `manga-page-${currentPage + 1}.png`;
-    link.href = dataURL;
-    link.click();
-  };
-
   const tools = [
     { id: "select" as ToolType, icon: MousePointer2, label: "選択 (V)" },
-    { id: "panel" as ToolType, icon: Square, label: "コマ (P)" },
+    { id: "panel" as ToolType, icon: Square, label: "枠 (P)" },
     { id: "bubble" as ToolType, icon: MessageSquare, label: "吹き出し (B)" },
     { id: "text" as ToolType, icon: Type, label: "テキスト (T)" },
   ];
@@ -328,7 +305,7 @@ export function MangaEditor({ pages: initialPages }: MangaEditorProps) {
   ];
 
   return (
-    <div className="flex gap-3 h-[calc(100vh-140px)]">
+    <div className="flex gap-3 h-full p-3">
       {/* Left Toolbar */}
       <div className="w-14 flex-shrink-0 paper-card rounded-lg p-2 flex flex-col gap-1">
         {/* Tool buttons */}
@@ -421,55 +398,12 @@ export function MangaEditor({ pages: initialPages }: MangaEditorProps) {
       <div className="flex-1 paper-card rounded-lg overflow-hidden flex flex-col">
         {/* Canvas Header */}
         <div className="flex items-center justify-between px-4 py-2 border-b border-border/50 bg-card/50">
-          {/* Page navigation */}
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="w-8 h-8"
-              onClick={handlePrevPage}
-              disabled={currentPage === 0}
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </Button>
-            <span className="text-sm font-medium min-w-[80px] text-center">
-              {currentPage + 1} / {totalPages}
-            </span>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="w-8 h-8"
-              onClick={handleNextPage}
-              disabled={currentPage >= totalPages - 1}
-            >
-              <ChevronRight className="w-4 h-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="w-8 h-8"
-              onClick={handleAddPage}
-              title="ページを追加"
-            >
-              <Plus className="w-4 h-4" />
-            </Button>
-          </div>
-
-          {/* Zoom & Export */}
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
-              {zoom}%
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExport}
-              className="gap-2"
-            >
-              <Download className="w-4 h-4" />
-              エクスポート
-            </Button>
-          </div>
+          <span className="text-sm font-medium">
+            ページ {page.page_number}
+          </span>
+          <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
+            {zoom}%
+          </span>
         </div>
 
         {/* Canvas */}
@@ -486,39 +420,7 @@ export function MangaEditor({ pages: initialPages }: MangaEditorProps) {
       </div>
 
       {/* Right Sidebar */}
-      <div className="w-64 flex-shrink-0 flex flex-col gap-3 overflow-auto">
-        {/* Page Thumbnails */}
-        <div className="paper-card rounded-lg p-3">
-          <h3 className="text-xs font-medium text-muted-foreground mb-3 flex items-center gap-2">
-            <Grip className="w-3 h-3" />
-            ページ一覧
-          </h3>
-          <div className="grid grid-cols-3 gap-2">
-            {Array.from({ length: totalPages }).map((_, index) => (
-              <button
-                key={index}
-                className={`aspect-[3/4] rounded border-2 overflow-hidden transition-all ${
-                  index === currentPage
-                    ? "border-primary ring-2 ring-primary/20"
-                    : "border-border hover:border-primary/50"
-                }`}
-                onClick={() => {
-                  const manager = managerRef.current;
-                  if (manager) {
-                    loadPageState(manager, index);
-                    setCurrentPage(index);
-                    setTimeout(refreshLayers, 0);
-                  }
-                }}
-              >
-                <div className="w-full h-full bg-[hsl(var(--washi))] flex items-center justify-center text-xs text-muted-foreground font-medium">
-                  {index + 1}
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-
+      <div className="w-56 flex-shrink-0 flex flex-col gap-3 overflow-auto">
         {/* Layer Panel */}
         {showLayerPanel && (
           <div className="paper-card rounded-lg flex-1 min-h-[200px] max-h-[300px] overflow-auto">
@@ -593,4 +495,4 @@ export function MangaEditor({ pages: initialPages }: MangaEditorProps) {
       </div>
     </div>
   );
-}
+});

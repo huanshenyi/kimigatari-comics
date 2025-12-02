@@ -58,7 +58,6 @@ export const getUploadUrlRoute = registerApiRoute("/assets/upload-url", {
       const validTypes: AssetType[] = [
         "character",
         "background",
-        "effect",
         "reference",
         "generated",
       ];
@@ -116,7 +115,6 @@ export const uploadAssetRoute = registerApiRoute("/assets/upload", {
       const validTypes: AssetType[] = [
         "character",
         "background",
-        "effect",
         "reference",
         "generated",
       ];

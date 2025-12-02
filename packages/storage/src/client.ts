@@ -13,7 +13,7 @@ import type {
   AssetType,
   ListAssetsOptions,
   ListAssetsResult,
-} from "./types.ts";
+} from "./types.js";
 
 /**
  * Get storage configuration from environment variables

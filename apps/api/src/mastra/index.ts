@@ -35,7 +35,7 @@ export const mastra = new Mastra({
     mangaGeneration: mangaGenerationWorkflow,
   },
   storage: new LibSQLStore({
-    url: process.env.DATABASE_URL || ":memory:",
+    url: process.env.STORAGE_URL || ":memory:",
   }),
   logger: new PinoLogger({
     name: "Mastra",

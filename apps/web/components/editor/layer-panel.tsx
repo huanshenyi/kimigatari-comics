@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useState, useRef } from "react";
 import { Canvas, FabricObject } from "fabric";
 import { Button } from "@/components/ui/button";
 import {
@@ -244,13 +244,19 @@ export function useLayerManager(canvas: Canvas | null) {
   const [layers, setLayers] = useState<LayerItem[]>([]);
   const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
 
+  // Store canvas ref to avoid dependency issues
+  const canvasRef = useRef<Canvas | null>(null);
+  canvasRef.current = canvas;
+
+  // Use ref to keep refreshLayers stable across renders
   const refreshLayers = useCallback(() => {
-    if (!canvas) {
+    const currentCanvas = canvasRef.current;
+    if (!currentCanvas) {
       setLayers([]);
       return;
     }
 
-    const objects = canvas.getObjects();
+    const objects = currentCanvas.getObjects();
     const layerItems: LayerItem[] = [];
 
     for (const obj of objects) {
@@ -300,97 +306,105 @@ export function useLayerManager(canvas: Canvas | null) {
     layerItems.reverse();
 
     setLayers(layerItems);
-  }, [canvas]);
+  }, []); // Empty deps - uses ref for canvas
+
+  // Store layers ref to avoid dependency issues in callbacks
+  const layersRef = useRef<LayerItem[]>([]);
+  layersRef.current = layers;
 
   const selectLayer = useCallback(
     (id: string) => {
-      if (!canvas) return;
+      const currentCanvas = canvasRef.current;
+      if (!currentCanvas) return;
 
       setSelectedLayerId(id);
-      const layer = layers.find((l) => l.id === id);
+      const layer = layersRef.current.find((l) => l.id === id);
       if (layer && layer.object) {
-        canvas.setActiveObject(layer.object);
-        canvas.renderAll();
+        currentCanvas.setActiveObject(layer.object);
+        currentCanvas.renderAll();
       }
     },
-    [canvas, layers]
+    []
   );
 
   const toggleVisibility = useCallback(
     (id: string) => {
-      if (!canvas) return;
+      const currentCanvas = canvasRef.current;
+      if (!currentCanvas) return;
 
-      const layer = layers.find((l) => l.id === id);
+      const layer = layersRef.current.find((l) => l.id === id);
       if (layer && layer.object) {
         layer.object.set("visible", !layer.visible);
-        canvas.renderAll();
+        currentCanvas.renderAll();
         refreshLayers();
       }
     },
-    [canvas, layers, refreshLayers]
+    [refreshLayers]
   );
 
   const toggleLock = useCallback(
     (id: string) => {
-      if (!canvas) return;
+      const currentCanvas = canvasRef.current;
+      if (!currentCanvas) return;
 
-      const layer = layers.find((l) => l.id === id);
+      const layer = layersRef.current.find((l) => l.id === id);
       if (layer && layer.object) {
         const newLocked = !layer.locked;
         layer.object.set({
           selectable: !newLocked,
           evented: !newLocked,
         });
-        canvas.renderAll();
+        currentCanvas.renderAll();
         refreshLayers();
       }
     },
-    [canvas, layers, refreshLayers]
+    [refreshLayers]
   );
 
   const moveUp = useCallback(
     (id: string) => {
-      if (!canvas) return;
+      const currentCanvas = canvasRef.current;
+      if (!currentCanvas) return;
 
-      const layer = layers.find((l) => l.id === id);
+      const layer = layersRef.current.find((l) => l.id === id);
       if (layer && layer.object) {
-        canvas.bringObjectForward(layer.object);
-        canvas.renderAll();
+        currentCanvas.bringObjectForward(layer.object);
+        currentCanvas.renderAll();
         refreshLayers();
       }
     },
-    [canvas, layers, refreshLayers]
+    [refreshLayers]
   );
 
   const moveDown = useCallback(
     (id: string) => {
-      if (!canvas) return;
+      const currentCanvas = canvasRef.current;
+      if (!currentCanvas) return;
 
-      const layer = layers.find((l) => l.id === id);
+      const layer = layersRef.current.find((l) => l.id === id);
       if (layer && layer.object) {
-        canvas.sendObjectBackwards(layer.object);
-        canvas.renderAll();
+        currentCanvas.sendObjectBackwards(layer.object);
+        currentCanvas.renderAll();
         refreshLayers();
       }
     },
-    [canvas, layers, refreshLayers]
+    [refreshLayers]
   );
 
   const deleteLayer = useCallback(
     (id: string) => {
-      if (!canvas) return;
+      const currentCanvas = canvasRef.current;
+      if (!currentCanvas) return;
 
-      const layer = layers.find((l) => l.id === id);
+      const layer = layersRef.current.find((l) => l.id === id);
       if (layer && layer.object) {
-        canvas.remove(layer.object);
-        canvas.renderAll();
+        currentCanvas.remove(layer.object);
+        currentCanvas.renderAll();
         refreshLayers();
-        if (selectedLayerId === id) {
-          setSelectedLayerId(null);
-        }
+        setSelectedLayerId((prev) => (prev === id ? null : prev));
       }
     },
-    [canvas, layers, refreshLayers, selectedLayerId]
+    [refreshLayers]
   );
 
   return {

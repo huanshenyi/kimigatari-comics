@@ -13,7 +13,7 @@ import {
 interface GenerationProgressProps {
   progress: number;
   currentStep: string;
-  currentStepId: string | null;
+  currentStepId?: string | null;
   completedSteps: string[];
 }
 

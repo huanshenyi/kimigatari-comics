@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "キミガタリコミックス | AI Manga Generator",
-  description: "AIを活用してプロットから白黒マンガを自動生成するアプリケーション",
+  description: "AIを活用してプロットからマンガを自動生成するアプリケーション",
 };
 
 export default function RootLayout({
