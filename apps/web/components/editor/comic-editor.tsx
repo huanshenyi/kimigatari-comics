@@ -10,6 +10,7 @@ import { MangaEditorSingle, type MangaEditorHandle } from "./manga-editor-single
 import { PageStrip } from "./page-strip";
 import { AddPageModal } from "./add-page-modal";
 import { GenerationProgress } from "./generation-progress";
+import { ExportDialog } from "./export-dialog";
 import { ProjectAssets } from "@/components/assets/project-assets";
 import {
   createPage,
@@ -39,6 +40,7 @@ export function ComicEditor({ project, initialPages }: ComicEditorProps) {
   const [pages, setPages] = useState<PageRow[]>(initialPages);
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [isAddPageModalOpen, setIsAddPageModalOpen] = useState(false);
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [isAssetPanelOpen, setIsAssetPanelOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [title, setTitle] = useState(project.title);
@@ -258,34 +260,15 @@ export function ComicEditor({ project, initialPages }: ComicEditorProps) {
     [pages, currentPageIndex]
   );
 
-  // Handle export - キャンバスの編集状態を含めてエクスポート
-  const handleExport = useCallback(async () => {
-    const dataUrl = editorRef.current?.exportCanvas();
+  // Handle export - エクスポートダイアログを開く
+  const handleExport = useCallback(() => {
+    setIsExportDialogOpen(true);
+  }, []);
 
-    if (!dataUrl) {
-      alert("エクスポートする内容がありません");
-      return;
-    }
-
-    try {
-      // dataURL を Blob に変換
-      const res = await fetch(dataUrl);
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${project.title || "manga"}-page-${currentPage?.page_number || 1}.png`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-
-      URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error("Export failed:", error);
-      alert("エクスポートに失敗しました");
-    }
-  }, [title, currentPage]);
+  // Get current page DataURL for export
+  const getCurrentPageDataUrl = useCallback(() => {
+    return editorRef.current?.exportCanvas() || null;
+  }, []);
 
   // Handle title change
   const handleTitleSave = useCallback(async () => {
@@ -400,6 +383,16 @@ export function ComicEditor({ project, initialPages }: ComicEditorProps) {
         open={isAddPageModalOpen}
         onSubmit={handleAddPage}
         onOpenChange={setIsAddPageModalOpen}
+      />
+
+      {/* Export dialog */}
+      <ExportDialog
+        open={isExportDialogOpen}
+        onOpenChange={setIsExportDialogOpen}
+        pages={pages}
+        projectTitle={title}
+        currentPageIndex={currentPageIndex}
+        getCurrentPageDataUrl={getCurrentPageDataUrl}
       />
 
       {/* Generation progress overlay */}
