@@ -8,7 +8,6 @@ import {
   BookOpen,
   Trash2,
   Image as ImageIcon,
-  X,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -19,6 +18,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { AssetManager } from "@/components/assets/asset-manager";
 import { createProject, deleteProjectAction } from "./actions";
 import { cn } from "@/lib/utils";
@@ -214,28 +219,16 @@ export function HomeClient({ projects }: HomeClientProps) {
       </div>
 
       {/* Asset Manager Modal */}
-      {isAssetModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div
-            className="absolute inset-0 bg-background/80 backdrop-blur-sm"
-            onClick={() => setIsAssetModalOpen(false)}
-          />
-          <div className="relative bg-card border border-border rounded-lg shadow-xl w-full max-w-4xl h-[80vh] flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b border-border">
-              <h2 className="headline-editorial text-lg">素材ライブラリ</h2>
-              <button
-                onClick={() => setIsAssetModalOpen(false)}
-                className="w-8 h-8 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-hidden">
-              <AssetManager />
-            </div>
+      <Dialog open={isAssetModalOpen} onOpenChange={setIsAssetModalOpen}>
+        <DialogContent className="max-w-4xl h-[80vh] flex flex-col p-0">
+          <DialogHeader className="p-4 border-b border-border flex-shrink-0">
+            <DialogTitle className="headline-editorial">素材ライブラリ</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-hidden">
+            <AssetManager />
           </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </TooltipProvider>
   );
 }

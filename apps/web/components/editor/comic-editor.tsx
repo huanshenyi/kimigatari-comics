@@ -396,12 +396,11 @@ export function ComicEditor({ project, initialPages }: ComicEditorProps) {
       />
 
       {/* Add page modal */}
-      {isAddPageModalOpen && (
-        <AddPageModal
-          onSubmit={handleAddPage}
-          onClose={() => setIsAddPageModalOpen(false)}
-        />
-      )}
+      <AddPageModal
+        open={isAddPageModalOpen}
+        onSubmit={handleAddPage}
+        onOpenChange={setIsAddPageModalOpen}
+      />
 
       {/* Generation progress overlay */}
       {generationState.isGenerating && (
