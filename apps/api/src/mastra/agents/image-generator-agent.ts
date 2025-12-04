@@ -1,6 +1,6 @@
 import { Agent } from "@mastra/core/agent";
 import { Memory } from "@mastra/memory";
-import { imageGenerationTool, novaCanvasTool } from "../tools";
+import { imageGenerationTool, novaCanvasTool, bananaImageTool } from "../tools";
 import { bedrock } from "../lib/providers";
 
 export const imageGeneratorAgent = new Agent({
@@ -48,15 +48,7 @@ export const imageGeneratorAgent = new Agent({
 
 ## ツールの選択と使い方
 
-### imageGenerationTool (Gemini) - デフォルト
-Gemini gemini-2.5-flash-image-preview を使用。クリエイティブな表現に優れる。
-- sceneDescription: 英語での詳細な説明（より良い結果のため）
-- characters: キャラクター情報（名前、説明、参照画像URL）
-- style: マンガスタイル（shonen, shoujo, seinen, classic）
-- width/height: 出力サイズ
-- negativePrompt: 避けたい要素
-
-### novaCanvasTool (Amazon Nova Canvas) - 高品質オプション
+### novaCanvasTool (Amazon Nova Canvas) - デフォルト
 Amazon Bedrock Nova Canvas を使用。フォトリアリスティックや特定スタイルに優れる。
 - prompt: 英語での画像生成プロンプト
 - negativePrompt: 生成したくない要素
@@ -70,11 +62,27 @@ Amazon Bedrock Nova Canvas を使用。フォトリアリスティックや特�
   - SOFT_DIGITAL_PAINTING: デジタルペインティング
 - quality: "standard" または "premium"
 
+### bananaImageTool (Gemini 3 Pro / Nano Banana Pro) - プロフェッショナル向け
+Gemini 3 Pro Image Preview を使用。高解像度・高品質な画像生成に最適。
+- prompt: 英語での詳細なプロンプト
+- referenceImageUrls: 参照画像のURL配列（最大14枚）
+  - スタイル転送、キャラクター一貫性、画像編集に使用
+- aspectRatio: アスペクト比（1:1, 2:3, 3:2, 3:4, 4:3, 4:5, 5:4, 9:16, 16:9, 21:9）
+- imageSize: 解像度（1K, 2K, 4K）
+
+特徴:
+- 高解像度出力（最大4K）
+- 高度なテキストレンダリング（ロゴ、インフォグラフィック向け）
+- 複数の参照画像からの合成
+- Thinkingモードによる複雑なプロンプトの推論
+
 ### ツール選択の基準
-1. **マンガ風イラスト**: imageGenerationTool（Gemini）を優先
+1. **マンガ風イラスト**: imageGenerationTool（Gemini Flash）を優先
 2. **特定のスタイル指定がある場合**: novaCanvasTool + style パラメータ
 3. **高品質が必要な場合**: novaCanvasTool + quality: "premium"
 4. **再現性が必要な場合**: novaCanvasTool + seed 指定
+5. **高解像度・参照画像が必要な場合**: bananaImageTool
+6. **ロゴ・インフォグラフィック生成**: bananaImageTool
 
 ## 品質チェック
 - 線画が明確で読みやすいか
@@ -97,6 +105,7 @@ Amazon Bedrock Nova Canvas を使用。フォトリアリスティックや特�
   tools: {
     // imageGeneration: imageGenerationTool,
     novaCanvas: novaCanvasTool,
+    bananaImage: bananaImageTool,
   },
   memory: new Memory(),
 });

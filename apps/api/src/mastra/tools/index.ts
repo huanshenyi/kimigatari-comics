@@ -17,3 +17,9 @@ export {
   novaCanvasResultSchema,
   novaCanvasStyleSchema,
 } from "./nova-canvas-tool";
+export {
+  bananaImageTool,
+  bananaImageResultSchema,
+  bananaAspectRatioSchema,
+  bananaImageSizeSchema,
+} from "./banana-image-tool";

@@ -2,6 +2,8 @@ import { createTool } from "@mastra/core/tools";
 import { google } from "@ai-sdk/google";
 import { generateText } from "ai";
 import { z } from "zod";
+import { createStorageClient } from "@kimigatari/storage";
+import { AISpanType } from "@mastra/core/ai-tracing";
 
 export const mangaStyleSchema = z.enum([
   "shonen", // 少年マンガスタイル
@@ -40,7 +42,7 @@ export const imageGenerationTool = createTool({
     negativePrompt: z.string().optional(),
   }),
   outputSchema: imageGenerationResultSchema,
-  execute: async ({ context, writer, mastra }) => {
+  execute: async ({ context, writer, tracingContext }) => {
     await writer?.custom({
       type: "tool-progress",
       data: {
@@ -93,9 +95,9 @@ export const imageGenerationTool = createTool({
       },
     });
 
-    // Generate image using Gemini gemini-2.5-flash-image-preview
+    // Generate image using Gemini gemini-2.5-flash-image
     const result = await generateText({
-      model: google("gemini-2.5-flash-image-preview"),
+      model: google("gemini-2.5-flash-image"),
       prompt: `Generate a manga panel image with the following specifications:
 
 Style: ${fullPrompt}
@@ -104,19 +106,57 @@ Important guidelines:
 - Create a black and white manga-style illustration
 - Avoid: ${finalNegativePrompt}
 - Output dimensions should be suitable for a manga panel`,
+      providerOptions: {
+        google: { responseModalities: ["TEXT", "IMAGE"] },
+      },
     });
 
     // Extract generated image from result
     let imageBase64: string | undefined;
     let imageUrl = "";
+    let mediaType = "image/png";
 
     for (const file of result.files ?? []) {
       if (file.mediaType.startsWith("image/")) {
-        // Create data URL for immediate use
-        imageUrl = `data:${file.mediaType};base64,${file.base64}`;
+        imageBase64 = file.base64;
+        mediaType = file.mediaType;
         break;
       }
     }
+
+    if (!imageBase64) {
+      throw new Error("画像生成に失敗しました: 画像が生成されませんでした");
+    }
+
+    // トレースイベント作成
+    tracingContext?.currentSpan?.createEventSpan({
+      type: AISpanType.TOOL_CALL,
+      name: "image-generation",
+      output: {
+        imageBase64,
+        imageUrl: `data:${mediaType};base64,${imageBase64}`,
+        width,
+        height,
+      },
+    });
+
+    await writer?.custom({
+      type: "tool-progress",
+      data: {
+        status: "in-progress",
+        message: "画像をストレージに保存中...",
+        stage: "uploading",
+      },
+    });
+
+    // S3/MinIOに保存
+    const storage = createStorageClient();
+    const buffer = Buffer.from(imageBase64, "base64");
+    const filename = `panel_${Date.now()}.png`;
+
+    const uploadResult = await storage.upload(buffer, filename, "generated", {
+      mimeType: mediaType,
+    });
 
     await writer?.custom({
       type: "tool-progress",
@@ -128,7 +168,7 @@ Important guidelines:
     });
 
     return {
-      imageUrl,
+      imageUrl: uploadResult.publicUrl,
       imageBase64,
       width,
       height,
