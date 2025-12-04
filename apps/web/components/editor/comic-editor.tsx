@@ -17,6 +17,7 @@ import {
   deletePageAction,
   reorderPages,
 } from "@/app/actions";
+import { updateProjectTitle } from "@/app/comics/[id]/edit/actions";
 import type { ProjectRow, PageRow } from "@kimigatari/db";
 
 // Helper to calculate progress percentage (outside component to avoid re-creation)
@@ -40,6 +41,8 @@ export function ComicEditor({ project, initialPages }: ComicEditorProps) {
   const [isAddPageModalOpen, setIsAddPageModalOpen] = useState(false);
   const [isAssetPanelOpen, setIsAssetPanelOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [title, setTitle] = useState(project.title);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [generationState, setGenerationState] = useState<{
     isGenerating: boolean;
     progress: number;
@@ -282,7 +285,19 @@ export function ComicEditor({ project, initialPages }: ComicEditorProps) {
       console.error("Export failed:", error);
       alert("エクスポートに失敗しました");
     }
-  }, [project.title, currentPage]);
+  }, [title, currentPage]);
+
+  // Handle title change
+  const handleTitleSave = useCallback(async () => {
+    const trimmedTitle = title.trim();
+    if (trimmedTitle === "" || trimmedTitle === project.title) {
+      setTitle(project.title);
+      setIsEditingTitle(false);
+      return;
+    }
+    setIsEditingTitle(false);
+    await updateProjectTitle(project.id, trimmedTitle);
+  }, [title, project.id, project.title]);
 
   return (
     <div className="flex flex-col h-screen bg-background">
@@ -294,7 +309,31 @@ export function ComicEditor({ project, initialPages }: ComicEditorProps) {
           </Button>
           <div className="flex items-center gap-3">
             <BookOpen className="w-5 h-5 text-primary" />
-            <h1 className="font-medium">{project.title || "無題"}</h1>
+            {isEditingTitle ? (
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                onBlur={handleTitleSave}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleTitleSave();
+                  if (e.key === "Escape") {
+                    setTitle(project.title);
+                    setIsEditingTitle(false);
+                  }
+                }}
+                autoFocus
+                className="font-medium bg-transparent border-b border-primary outline-none px-1"
+              />
+            ) : (
+              <h1
+                className="font-medium cursor-pointer hover:text-primary transition-colors px-1 border-b border-transparent hover:border-border"
+                onClick={() => setIsEditingTitle(true)}
+                title="クリックして編集"
+              >
+                {title || "無題"}
+              </h1>
+            )}
           </div>
           {isSaving && (
             <span className="text-xs text-muted-foreground flex items-center gap-1">

@@ -9,10 +9,19 @@ import {
   Trash2,
   Image as ImageIcon,
   X,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { AssetManager } from "@/components/assets/asset-manager";
 import { createProject, deleteProjectAction } from "./actions";
+import { cn } from "@/lib/utils";
 import type { ProjectRow } from "@kimigatari/db";
 
 interface HomeClientProps {
@@ -24,13 +33,18 @@ export function HomeClient({ projects }: HomeClientProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const handleNewProject = async () => {
     setIsCreating(true);
 
     try {
+      // 日時+ランダム数字でデフォルトタイトルを生成 (例: "1204_1523_42")
+      const now = new Date();
+      const defaultTitle = `${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}_${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}_${Math.floor(Math.random() * 100).toString().padStart(2, "0")}`;
+
       const result = await createProject({
-        title: "新規マンガ",
+        title: defaultTitle,
       });
 
       if (result.success && result.project) {
@@ -68,52 +82,89 @@ export function HomeClient({ projects }: HomeClientProps) {
   };
 
   return (
-    <>
-      <div className="flex h-full bg-background">
-        {/* Sidebar */}
-        <aside className="w-60 border-r border-border/50 flex flex-col bg-card/30 flex-shrink-0">
-          {/* Logo */}
-          <div className="p-4 border-b border-border/50">
-            <h1 className="headline-editorial text-lg">キミガタリ</h1>
-          </div>
+    <TooltipProvider delayDuration={300}>
+      <div className="relative flex h-full bg-background">
+        {/* Toggle Button - サイドバーの右端に接する縦長ボタン */}
+        <button
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className={cn(
+            "absolute top-1/2 -translate-y-1/2 z-10 transition-all duration-200",
+            "w-6 h-16 bg-card border border-border border-l-0 rounded-r-lg",
+            "flex items-center justify-center shadow-sm hover:shadow-md hover:bg-secondary",
+            sidebarOpen ? "left-60" : "left-14"
+          )}
+          aria-label={sidebarOpen ? "サイドバーを閉じる" : "サイドバーを開く"}
+        >
+          {sidebarOpen ? (
+            <ChevronLeft className="w-4 h-4 text-muted-foreground" />
+          ) : (
+            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+          )}
+        </button>
 
+        {/* Sidebar */}
+        <aside
+          className={cn(
+            "border-r border-border/50 flex flex-col bg-card/30 flex-shrink-0 transition-all duration-200",
+            sidebarOpen ? "w-60" : "w-14"
+          )}
+        >
           {/* New Project Button */}
-          <div className="p-4">
-            <Button
-              onClick={handleNewProject}
-              disabled={isCreating}
-              className="w-full gap-2"
-            >
-              {isCreating ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  作成中...
-                </>
-              ) : (
-                <>
-                  <Plus className="w-4 h-4" />
-                  新規作成
-                </>
+          <div className={cn("p-4", !sidebarOpen && "p-2")}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={handleNewProject}
+                  disabled={isCreating}
+                  className={cn(
+                    "transition-all duration-200",
+                    sidebarOpen ? "w-full gap-2 h-11" : "w-10 h-10"
+                  )}
+                  size={sidebarOpen ? "default" : "icon"}
+                >
+                  {isCreating ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Plus className="w-4 h-4" />
+                  )}
+                  {sidebarOpen && (isCreating ? "作成中..." : "新規作成")}
+                </Button>
+              </TooltipTrigger>
+              {!sidebarOpen && (
+                <TooltipContent side="right">新規作成</TooltipContent>
               )}
-            </Button>
+            </Tooltip>
           </div>
 
           {/* Recent Projects List */}
           {projects.length > 0 && (
-            <nav className="flex-1 overflow-auto px-2">
-              <p className="text-xs text-muted-foreground px-2 py-2 font-medium">
-                最近のプロジェクト
-              </p>
+            <nav className={cn("flex-1 overflow-auto", sidebarOpen ? "px-4" : "px-2")}>
+              {sidebarOpen && (
+                <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+                  最近のプロジェクト
+                </h3>
+              )}
               <div className="space-y-1">
                 {projects.slice(0, 10).map((project) => (
-                  <button
-                    key={project.id}
-                    onClick={() => router.push(`/comics/${project.id}/edit`)}
-                    className="w-full text-left px-3 py-2 rounded text-sm hover:bg-muted/50 transition-colors truncate flex items-center gap-2"
-                  >
-                    <BookOpen className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                    <span className="truncate">{project.title}</span>
-                  </button>
+                  <Tooltip key={project.id}>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={() => router.push(`/comics/${project.id}/edit`)}
+                        className={cn(
+                          "w-full text-left rounded-lg text-sm hover:bg-muted/50 transition-colors flex items-center gap-3 group",
+                          sidebarOpen ? "px-3 py-2.5" : "justify-center py-2.5"
+                        )}
+                      >
+                        <BookOpen className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors flex-shrink-0" />
+                        {sidebarOpen && (
+                          <span className="truncate">{project.title}</span>
+                        )}
+                      </button>
+                    </TooltipTrigger>
+                    {!sidebarOpen && (
+                      <TooltipContent side="right">{project.title}</TooltipContent>
+                    )}
+                  </Tooltip>
                 ))}
               </div>
             </nav>
@@ -123,14 +174,24 @@ export function HomeClient({ projects }: HomeClientProps) {
           {projects.length === 0 && <div className="flex-1" />}
 
           {/* Bottom Actions */}
-          <div className="p-4 border-t border-border/50">
-            <button
-              onClick={() => setIsAssetModalOpen(true)}
-              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors w-full px-2 py-2 rounded hover:bg-muted/50"
-            >
-              <ImageIcon className="w-4 h-4" />
-              素材管理
-            </button>
+          <div className={cn("border-t border-border/50", sidebarOpen ? "p-4" : "p-2")}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => setIsAssetModalOpen(true)}
+                  className={cn(
+                    "flex items-center text-sm text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-muted/50 group",
+                    sidebarOpen ? "gap-3 w-full px-3 py-2.5" : "w-10 h-10 justify-center"
+                  )}
+                >
+                  <ImageIcon className="w-4 h-4 group-hover:text-foreground transition-colors" />
+                  {sidebarOpen && "素材管理"}
+                </button>
+              </TooltipTrigger>
+              {!sidebarOpen && (
+                <TooltipContent side="right">素材管理</TooltipContent>
+              )}
+            </Tooltip>
           </div>
         </aside>
 
@@ -175,7 +236,7 @@ export function HomeClient({ projects }: HomeClientProps) {
           </div>
         </div>
       )}
-    </>
+    </TooltipProvider>
   );
 }
 
@@ -271,12 +332,12 @@ function ProjectGrid({
                 </p>
                 <span
                   className={`inline-block mt-2 text-xs px-2 py-0.5 rounded ${project.status === "completed"
-                      ? "bg-green-500/10 text-green-500"
-                      : project.status === "generating"
-                        ? "bg-yellow-500/10 text-yellow-500"
-                        : project.status === "error"
-                          ? "bg-red-500/10 text-red-500"
-                          : "bg-muted text-muted-foreground"
+                    ? "bg-green-500/10 text-green-500"
+                    : project.status === "generating"
+                      ? "bg-yellow-500/10 text-yellow-500"
+                      : project.status === "error"
+                        ? "bg-red-500/10 text-red-500"
+                        : "bg-muted text-muted-foreground"
                     }`}
                 >
                   {project.status === "completed"
