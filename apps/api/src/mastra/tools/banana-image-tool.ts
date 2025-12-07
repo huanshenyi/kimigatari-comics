@@ -1,6 +1,5 @@
 import { createTool } from "@mastra/core/tools";
-import { google } from "@ai-sdk/google";
-import { generateText } from "ai";
+import { genAI } from "../lib/gemini-providers";
 import { z } from "zod";
 import { createStorageClient } from "@kimigatari/storage";
 import { AISpanType } from "@mastra/core/ai-tracing";
@@ -22,24 +21,65 @@ export const bananaImageSizeSchema = z.enum(["1K", "2K", "4K"]);
 
 export const bananaImageResultSchema = z.object({
   imageUrl: z.string(),
-  width: z.number(),
-  height: z.number(),
   prompt: z.string(),
   textResponse: z.string().optional(),
 });
 
 // Resolution mapping based on aspect ratio and size
-const RESOLUTION_MAP: Record<string, Record<string, { width: number; height: number }>> = {
-  "1:1": { "1K": { width: 1024, height: 1024 }, "2K": { width: 2048, height: 2048 }, "4K": { width: 4096, height: 4096 } },
-  "2:3": { "1K": { width: 848, height: 1264 }, "2K": { width: 1696, height: 2528 }, "4K": { width: 3392, height: 5056 } },
-  "3:2": { "1K": { width: 1264, height: 848 }, "2K": { width: 2528, height: 1696 }, "4K": { width: 5056, height: 3392 } },
-  "3:4": { "1K": { width: 896, height: 1200 }, "2K": { width: 1792, height: 2400 }, "4K": { width: 3584, height: 4800 } },
-  "4:3": { "1K": { width: 1200, height: 896 }, "2K": { width: 2400, height: 1792 }, "4K": { width: 4800, height: 3584 } },
-  "4:5": { "1K": { width: 928, height: 1152 }, "2K": { width: 1856, height: 2304 }, "4K": { width: 3712, height: 4608 } },
-  "5:4": { "1K": { width: 1152, height: 928 }, "2K": { width: 2304, height: 1856 }, "4K": { width: 4608, height: 3712 } },
-  "9:16": { "1K": { width: 768, height: 1376 }, "2K": { width: 1536, height: 2752 }, "4K": { width: 3072, height: 5504 } },
-  "16:9": { "1K": { width: 1376, height: 768 }, "2K": { width: 2752, height: 1536 }, "4K": { width: 5504, height: 3072 } },
-  "21:9": { "1K": { width: 1584, height: 672 }, "2K": { width: 3168, height: 1344 }, "4K": { width: 6336, height: 2688 } },
+const RESOLUTION_MAP: Record<
+  string,
+  Record<string, { width: number; height: number }>
+> = {
+  "1:1": {
+    "1K": { width: 1024, height: 1024 },
+    "2K": { width: 2048, height: 2048 },
+    "4K": { width: 4096, height: 4096 },
+  },
+  "2:3": {
+    "1K": { width: 848, height: 1264 },
+    "2K": { width: 1696, height: 2528 },
+    "4K": { width: 3392, height: 5056 },
+  },
+  "3:2": {
+    "1K": { width: 1264, height: 848 },
+    "2K": { width: 2528, height: 1696 },
+    "4K": { width: 5056, height: 3392 },
+  },
+  "3:4": {
+    "1K": { width: 896, height: 1200 },
+    "2K": { width: 1792, height: 2400 },
+    "4K": { width: 3584, height: 4800 },
+  },
+  "4:3": {
+    "1K": { width: 1200, height: 896 },
+    "2K": { width: 2400, height: 1792 },
+    "4K": { width: 4800, height: 3584 },
+  },
+  "4:5": {
+    "1K": { width: 928, height: 1152 },
+    "2K": { width: 1856, height: 2304 },
+    "4K": { width: 3712, height: 4608 },
+  },
+  "5:4": {
+    "1K": { width: 1152, height: 928 },
+    "2K": { width: 2304, height: 1856 },
+    "4K": { width: 4608, height: 3712 },
+  },
+  "9:16": {
+    "1K": { width: 768, height: 1376 },
+    "2K": { width: 1536, height: 2752 },
+    "4K": { width: 3072, height: 5504 },
+  },
+  "16:9": {
+    "1K": { width: 1376, height: 768 },
+    "2K": { width: 2752, height: 1536 },
+    "4K": { width: 5504, height: 3072 },
+  },
+  "21:9": {
+    "1K": { width: 1584, height: 672 },
+    "2K": { width: 3168, height: 1344 },
+    "4K": { width: 6336, height: 2688 },
+  },
 };
 
 export const bananaImageTool = createTool({
@@ -62,13 +102,15 @@ export const bananaImageTool = createTool({
     prompt: z
       .string()
       .describe(
-        "画像生成プロンプト（英語推奨）。シーンを詳細に説明すると良い結果が得られます"
+        "画像生成プロンプト。AIエージェントがYAML形式のコマ仕様から構築した英語プロンプトを受け取ります。シーンを詳細に説明すると良い結果が得られます"
       ),
     referenceImageUrls: z
       .array(z.string().url())
       .max(14)
       .optional()
-      .describe("参照画像のURL（最大14枚）。スタイル転送、キャラクター一貫性、画像編集に使用"),
+      .describe(
+        "参照画像のURL（最大14枚）。キャラクター一貫性維持、スタイル転送に使用"
+      ),
     aspectRatio: bananaAspectRatioSchema
       .default("1:1")
       .describe("出力画像のアスペクト比"),
@@ -77,7 +119,8 @@ export const bananaImageTool = createTool({
       .describe("出力画像の解像度（1K/2K/4K）"),
   }),
   outputSchema: bananaImageResultSchema,
-  execute: async ({ context, writer, tracingContext }) => {
+  execute: async ({ context, writer, tracingContext, mastra }) => {
+    const logger = mastra?.getLogger();
     await writer?.custom({
       type: "tool-progress",
       data: {
@@ -89,8 +132,16 @@ export const bananaImageTool = createTool({
 
     const { prompt, referenceImageUrls, aspectRatio, imageSize } = context;
 
-    // Build content array with optional reference images
-    const contents: Array<{ type: "text"; text: string } | { type: "image"; image: string; mimeType: string }> = [];
+    // Build parts array with optional reference images
+    const parts: any[] = [];
+
+    tracingContext?.currentSpan?.createEventSpan({
+      type: AISpanType.TOOL_CALL,
+      name: "get-banana-image-inputs",
+      output: {
+        referenceImageUrls: referenceImageUrls,
+      },
+    });
 
     // Fetch and add reference images if provided
     if (referenceImageUrls && referenceImageUrls.length > 0) {
@@ -111,49 +162,83 @@ export const bananaImageTool = createTool({
         const arrayBuffer = await response.arrayBuffer();
         const base64 = Buffer.from(arrayBuffer).toString("base64");
         const contentType = response.headers.get("content-type") || "image/png";
-
-        contents.push({
-          type: "image",
-          image: base64,
-          mimeType: contentType,
+        parts.push({
+          inlineData: {
+            mimeType: contentType,
+            data: base64,
+          },
         });
       }
     }
 
     // Add text prompt
-    contents.push({ type: "text", text: prompt });
-
-    // Generate image using Gemini 3 Pro Image Preview
-    const result = await generateText({
-      model: google("gemini-3-pro-image-preview"),
-      messages: [{ role: "user", content: contents }],
-      providerOptions: {
-        google: {
-          responseModalities: ["TEXT", "IMAGE"],
-          imageConfig: {
-            aspectRatio,
-            imageSize,
-          },
-        },
-      },
+    parts.push({
+      text:
+        "キャラクターの見た目は添付画像を参考して忠実に再現してください\n" +
+        prompt,
     });
 
-    // Extract generated image from result
+    // Generate image using Gemini 3 Pro Image Preview
+    const config = {
+      responseModalities: ["IMAGE"],
+      imageConfig: {
+        aspectRatio,
+        imageSize,
+      },
+    };
+
+    const contents = [
+      {
+        role: "user" as const,
+        parts: parts,
+      },
+    ];
+
+    const response = await genAI.models.generateContent({
+      model: "gemini-3-pro-image-preview",
+      config,
+      contents,
+    });
+
+    // Extract generated image from response
+    if (!response.candidates || response.candidates.length === 0) {
+      throw new Error(
+        "画像生成に失敗しました: 生成された画像データが見つかりません"
+      );
+    }
+
+    const candidate = response.candidates[0];
+
+    // PROHIBITED_CONTENT エラーのチェック
+    if (candidate?.finishReason === "PROHIBITED_CONTENT") {
+      throw new Error(
+        "画像生成がコンテンツポリシー違反により拒否されました。プロンプトや参照画像を見直してください。"
+      );
+    }
+
+    if (
+      !candidate?.content ||
+      !candidate.content.parts ||
+      candidate.content.parts.length === 0
+    ) {
+      throw new Error(
+        "画像生成に失敗しました: 生成された画像データが見つかりません"
+      );
+    }
+
     let imageBase64: string | undefined;
     let mediaType = "image/png";
     let textResponse: string | undefined;
 
-    for (const file of result.files ?? []) {
-      if (file.mediaType.startsWith("image/")) {
-        imageBase64 = file.base64;
-        mediaType = file.mediaType;
-        break;
+    // Extract image and text from parts
+    for (const part of candidate.content.parts) {
+      if (part.inlineData && part.inlineData.data) {
+        imageBase64 = part.inlineData.data;
+        mediaType = part.inlineData.mimeType || "image/png";
       }
-    }
-
-    // Collect text response
-    if (result.text) {
-      textResponse = result.text;
+      if (part.text) {
+        textResponse = part.text;
+      }
     }
 
     if (!imageBase64) {
@@ -161,7 +246,10 @@ export const bananaImageTool = createTool({
     }
 
     // Get resolution based on aspect ratio and size
-    const resolution = RESOLUTION_MAP[aspectRatio]?.[imageSize] ?? { width: 1024, height: 1024 };
+    const resolution = RESOLUTION_MAP[aspectRatio]?.[imageSize] ?? {
+      width: 1024,
+      height: 1024,
+    };
 
     // トレースイベント作成
     tracingContext?.currentSpan?.createEventSpan({
@@ -204,8 +292,6 @@ export const bananaImageTool = createTool({
 
     return {
       imageUrl: uploadResult.publicUrl,
-      width: resolution.width,
-      height: resolution.height,
       prompt,
       textResponse,
     };

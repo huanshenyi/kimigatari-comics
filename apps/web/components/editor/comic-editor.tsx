@@ -4,9 +4,19 @@ import { useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { arrayMove } from "@dnd-kit/sortable";
 import type { DragEndEvent } from "@dnd-kit/core";
-import { BookOpen, Download, Home, Loader2, Image as ImageIcon, PanelLeftClose } from "lucide-react";
+import {
+  BookOpen,
+  Download,
+  Home,
+  Loader2,
+  Image as ImageIcon,
+  PanelLeftClose,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { MangaEditorSingle, type MangaEditorHandle } from "./manga-editor-single";
+import {
+  MangaEditorSingle,
+  type MangaEditorHandle,
+} from "./manga-editor-single";
 import { PageStrip } from "./page-strip";
 import { AddPageModal } from "./add-page-modal";
 import { GenerationProgress } from "./generation-progress";
@@ -21,12 +31,33 @@ import {
 import { updateProjectTitle } from "@/app/comics/[id]/edit/actions";
 import type { ProjectRow, PageRow } from "@kimigatari/db";
 
+interface ProjectAsset {
+  id: string;
+  user_id: string | null;
+  type: string;
+  name: string;
+  s3_key: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  display_order: number;
+}
+
+// Helper to get asset URL
+function getAssetUrl(s3Key: string): string {
+  const baseUrl =
+    process.env.NEXT_PUBLIC_MINIO_URL ||
+    "http://localhost:9000/kimigatari-assets";
+  return `${baseUrl}/${s3Key}`;
+}
+
 // Helper to calculate progress percentage (outside component to avoid re-creation)
 function calculateProgress(stepId: string, status: string): number {
   const stepOrder = ["generate-image"];
   const index = stepOrder.indexOf(stepId);
   if (index === -1) return 0;
-  return status === "completed" ? 100 : ((index + 0.5) / stepOrder.length) * 100;
+  return status === "completed"
+    ? 100
+    : ((index + 0.5) / stepOrder.length) * 100;
 }
 
 interface ComicEditorProps {
@@ -45,6 +76,7 @@ export function ComicEditor({ project, initialPages }: ComicEditorProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [title, setTitle] = useState(project.title);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [projectAssets, setProjectAssets] = useState<ProjectAsset[]>([]);
   const [generationState, setGenerationState] = useState<{
     isGenerating: boolean;
     progress: number;
@@ -76,21 +108,18 @@ export function ComicEditor({ project, initialPages }: ComicEditorProps) {
       // Update current page index if needed
       if (currentPageIndex === oldIndex) {
         setCurrentPageIndex(newIndex);
-      } else if (
-        currentPageIndex > oldIndex &&
-        currentPageIndex <= newIndex
-      ) {
+      } else if (currentPageIndex > oldIndex && currentPageIndex <= newIndex) {
         setCurrentPageIndex(currentPageIndex - 1);
-      } else if (
-        currentPageIndex < oldIndex &&
-        currentPageIndex >= newIndex
-      ) {
+      } else if (currentPageIndex < oldIndex && currentPageIndex >= newIndex) {
         setCurrentPageIndex(currentPageIndex + 1);
       }
 
       // Persist order to API
       try {
-        const orders = reordered.map((p, i) => ({ id: p.id, page_number: i + 1 }));
+        const orders = reordered.map((p, i) => ({
+          id: p.id,
+          page_number: i + 1,
+        }));
         await reorderPages(project.id, orders);
       } catch (error) {
         console.error("Failed to save page order:", error);
@@ -122,7 +151,8 @@ export function ComicEditor({ project, initialPages }: ComicEditorProps) {
         const newPage = pageResult.page;
 
         // Call generation workflow with SSE
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4111";
+        const apiUrl =
+          process.env.NEXT_PUBLIC_API_URL || "http://localhost:4111";
         const response = await fetch(`${apiUrl}/workflow/mangaGeneration`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -131,6 +161,32 @@ export function ComicEditor({ project, initialPages }: ComicEditorProps) {
               plot: prompt,
               title: project.title,
               targetPageCount: 1,
+              assets: {
+                characters: projectAssets
+                  .filter((a) => a.type === "character")
+                  .map((a) => ({
+                    id: a.id,
+                    name: a.name,
+                    s3_key: a.s3_key,
+                    url: getAssetUrl(a.s3_key),
+                  })),
+                backgrounds: projectAssets
+                  .filter((a) => a.type === "background")
+                  .map((a) => ({
+                    id: a.id,
+                    name: a.name,
+                    s3_key: a.s3_key,
+                    url: getAssetUrl(a.s3_key),
+                  })),
+                references: projectAssets
+                  .filter((a) => a.type === "reference")
+                  .map((a) => ({
+                    id: a.id,
+                    name: a.name,
+                    s3_key: a.s3_key,
+                    url: getAssetUrl(a.s3_key),
+                  })),
+              },
             },
           }),
         });
@@ -164,18 +220,23 @@ export function ComicEditor({ project, initialPages }: ComicEditorProps) {
                       ...s,
                       currentStep: message || s.currentStep,
                       currentStepId: stepId,
-                      completedSteps: status === "completed"
-                        ? [...s.completedSteps, stepId]
-                        : s.completedSteps,
+                      completedSteps:
+                        status === "completed"
+                          ? [...s.completedSteps, stepId]
+                          : s.completedSteps,
                       progress: calculateProgress(stepId, status),
                     }));
                   } else if (data.type === "data-workflow") {
                     // Mastra workflow final result
                     // Structure: data.data.steps["generate-image"].output.pages[0].layoutData
-                    const stepOutput = data.data?.steps?.["generate-image"]?.output;
+                    const stepOutput =
+                      data.data?.steps?.["generate-image"]?.output;
                     if (stepOutput?.pages?.[0]?.layoutData) {
                       generatedLayoutData = stepOutput.pages[0].layoutData;
-                      console.log("[SSE] Generated layoutData:", generatedLayoutData);
+                      console.log(
+                        "[SSE] Generated layoutData:",
+                        generatedLayoutData
+                      );
                     }
                   }
                 } catch {
@@ -187,7 +248,9 @@ export function ComicEditor({ project, initialPages }: ComicEditorProps) {
 
           // Update page with generated layout data
           if (generatedLayoutData.length > 0) {
-            await updatePageAction(newPage.id, { layout_data: generatedLayoutData });
+            await updatePageAction(newPage.id, {
+              layout_data: generatedLayoutData,
+            });
           }
           const updatedPage = { ...newPage, layout_data: generatedLayoutData };
 
@@ -210,7 +273,7 @@ export function ComicEditor({ project, initialPages }: ComicEditorProps) {
         setGenerationState((s) => ({ ...s, isGenerating: false }));
       }
     },
-    [project.id, project.title]
+    [project.id, project.title, projectAssets]
   );
 
   // Handle page update
@@ -339,7 +402,12 @@ export function ComicEditor({ project, initialPages }: ComicEditorProps) {
             )}
             素材
           </Button>
-          <Button variant="outline" size="sm" className="gap-2" onClick={handleExport}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={handleExport}
+          >
             <Download className="w-4 h-4" />
             エクスポート
           </Button>
@@ -351,7 +419,10 @@ export function ComicEditor({ project, initialPages }: ComicEditorProps) {
         {/* Asset Panel (Left) */}
         {isAssetPanelOpen && (
           <div className="w-80 border-r border-border/50 flex-shrink-0 overflow-hidden">
-            <ProjectAssets projectId={project.id} />
+            <ProjectAssets
+              projectId={project.id}
+              onAssetsChange={setProjectAssets}
+            />
           </div>
         )}
 

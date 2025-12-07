@@ -1,4 +1,4 @@
-import { BookOpen } from "lucide-react";
+import Image from "next/image";
 import { getProjectsByUser, type ProjectRow } from "@kimigatari/db";
 import { HomeClient } from "./page.client";
 
@@ -18,11 +18,16 @@ export default async function Home() {
     <div className="flex flex-col h-screen bg-background">
       {/* Editorial Header */}
       <header className="border-b border-border/50 flex-shrink-0">
-        <div className="container mx-auto py-4">
+        <div className="mx-auto py-4 px-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-primary/10 rounded flex items-center justify-center">
-                <BookOpen className="w-5 h-5 text-primary" />
+              <div className="rounded flex items-center justify-center">
+                <Image
+                  src="/icon.png"
+                  alt="キミガタリ"
+                  width={50}
+                  height={50}
+                />
               </div>
               <div>
                 <h1 className="headline-editorial text-xl tracking-tight">

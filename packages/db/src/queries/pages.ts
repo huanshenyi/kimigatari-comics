@@ -1,4 +1,4 @@
-import { eq, and, desc, asc, max } from "drizzle-orm";
+import { eq, and, asc, max } from "drizzle-orm";
 import { getDb } from "../drizzle";
 import { pages } from "../schema";
 import type {
@@ -85,15 +85,28 @@ export async function updatePageOrder(
 ): Promise<void> {
   const db = getDb();
 
-  // Update each page's order
-  await Promise.all(
-    orders.map(({ id, page_number }) =>
-      db
-        .update(pages)
-        .set({ pageNumber: page_number })
-        .where(and(eq(pages.id, id), eq(pages.projectId, projectId)))
-    )
-  );
+  // Use transaction to avoid unique constraint violations during reordering
+  await db.transaction(async (tx) => {
+    // Phase 1: Set all pages to temporary negative values to avoid conflicts
+    await Promise.all(
+      orders.map(({ id }, index) =>
+        tx
+          .update(pages)
+          .set({ pageNumber: -(index + 1) })
+          .where(and(eq(pages.id, id), eq(pages.projectId, projectId)))
+      )
+    );
+
+    // Phase 2: Update to final page numbers
+    await Promise.all(
+      orders.map(({ id, page_number }) =>
+        tx
+          .update(pages)
+          .set({ pageNumber: page_number })
+          .where(and(eq(pages.id, id), eq(pages.projectId, projectId)))
+      )
+    );
+  });
 }
 
 export async function deletePage(id: string): Promise<void> {

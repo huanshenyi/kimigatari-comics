@@ -35,6 +35,7 @@ interface ProjectAsset {
 
 interface ProjectAssetsProps {
   projectId: string;
+  onAssetsChange?: (assets: ProjectAsset[]) => void;
 }
 
 const roleConfig: Record<AssetRole, { label: string; icon: typeof Users }> = {
@@ -43,7 +44,10 @@ const roleConfig: Record<AssetRole, { label: string; icon: typeof Users }> = {
   reference: { label: "参照", icon: ImageIcon },
 };
 
-export function ProjectAssets({ projectId }: ProjectAssetsProps) {
+export function ProjectAssets({
+  projectId,
+  onAssetsChange,
+}: ProjectAssetsProps) {
   const [assets, setAssets] = useState<ProjectAsset[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -54,15 +58,18 @@ export function ProjectAssets({ projectId }: ProjectAssetsProps) {
     setIsLoading(true);
     try {
       const result = await getProjectAssetsAction(projectId);
+      console.log("Loaded project assets:", result);
       if (result.success && result.assets) {
-        setAssets(result.assets as ProjectAsset[]);
+        const loadedAssets = result.assets as ProjectAsset[];
+        setAssets(loadedAssets);
+        onAssetsChange?.(loadedAssets);
       }
     } catch (error) {
       console.error("Failed to load project assets:", error);
     } finally {
       setIsLoading(false);
     }
-  }, [projectId]);
+  }, [projectId, onAssetsChange]);
 
   useEffect(() => {
     loadAssets();
@@ -77,7 +84,11 @@ export function ProjectAssets({ projectId }: ProjectAssetsProps) {
       try {
         const result = await removeAssetFromProjectAction(projectId, assetId);
         if (result.success) {
-          setAssets((prev) => prev.filter((a) => a.id !== assetId));
+          setAssets((prev) => {
+            const updated = prev.filter((a) => a.id !== assetId);
+            onAssetsChange?.(updated);
+            return updated;
+          });
         }
       } catch (error) {
         console.error("Failed to remove asset:", error);
@@ -85,7 +96,7 @@ export function ProjectAssets({ projectId }: ProjectAssetsProps) {
         setRemovingId(null);
       }
     },
-    [projectId]
+    [projectId, onAssetsChange]
   );
 
   // Handle asset selection from picker
@@ -102,9 +113,10 @@ export function ProjectAssets({ projectId }: ProjectAssetsProps) {
         // Determine role from asset type
         // "generated" is not a valid AssetRole, so map it to undefined
         const validRoles = ["character", "background", "reference"];
-        const role = asset.type && validRoles.includes(asset.type)
-          ? (asset.type as AssetRole)
-          : undefined;
+        const role =
+          asset.type && validRoles.includes(asset.type)
+            ? (asset.type as AssetRole)
+            : undefined;
 
         // Add asset to project
         const result = await addAssetToProjectAction(
@@ -129,7 +141,9 @@ export function ProjectAssets({ projectId }: ProjectAssetsProps) {
   // Get public URL for an asset
   const getAssetUrl = (asset: ProjectAsset) => {
     // Construct URL from s3_key
-    const baseUrl = process.env.NEXT_PUBLIC_MINIO_URL || "http://localhost:9000/kimigatari-assets";
+    const baseUrl =
+      process.env.NEXT_PUBLIC_MINIO_URL ||
+      "http://localhost:9000/kimigatari-assets";
     return `${baseUrl}/${asset.s3_key}`;
   };
 
@@ -174,9 +188,7 @@ export function ProjectAssets({ projectId }: ProjectAssetsProps) {
         ) : assets.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 text-center">
             <FolderOpen className="w-12 h-12 text-muted-foreground/30 mb-4" />
-            <p className="text-muted-foreground mb-2">
-              まだ素材がありません
-            </p>
+            <p className="text-muted-foreground mb-2">まだ素材がありません</p>
             <p className="text-xs text-muted-foreground mb-4">
               「追加」ボタンから素材を選択してください
             </p>
@@ -259,10 +271,7 @@ export function ProjectAssets({ projectId }: ProjectAssetsProps) {
               </Button>
             </div>
             <div className="flex-1 overflow-hidden">
-              <AssetManager
-                onAssetSelect={handleAssetSelect}
-                selectionMode
-              />
+              <AssetManager onAssetSelect={handleAssetSelect} selectionMode />
             </div>
           </div>
         </div>

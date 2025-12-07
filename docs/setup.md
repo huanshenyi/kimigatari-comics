@@ -34,6 +34,12 @@ SUPABASE_URL=http://localhost:54321
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 ```
 
+### packages/db/.env.lcoal
+
+```env
+DATABASE_URL=postgresql://postgres:postgres@localhost:54322/postgres
+```
+
 ### apps/api/.env.local
 
 ```env
@@ -103,10 +109,11 @@ Supabase Studio: http://127.0.0.1:54323
 ## 6. ローカルストレージ（MinIO）の起動
 
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 MinIOコンソール: http://localhost:9001
+
 - ユーザー名: `minioadmin`
 - パスワード: `minioadmin`
 

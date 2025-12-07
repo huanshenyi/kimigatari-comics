@@ -4,11 +4,6 @@ export {
   layoutResultSchema,
 } from "./layout-calculator-tool";
 export {
-  imageGenerationTool,
-  imageGenerationResultSchema,
-  mangaStyleSchema,
-} from "./image-generation-tool";
-export {
   textPlacementTool,
   textPlacementResultSchema,
 } from "./text-placement-tool";

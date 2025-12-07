@@ -10,8 +10,8 @@
   },
   "dependencies": {
     "@ai-sdk/amazon-bedrock": "^3.0.62",
-    "@ai-sdk/google": "^2.0.44",
     "@aws-sdk/credential-providers": "^3.940.0",
+    "@google/genai": "^1.31.0",
     "@kimigatari/storage": "workspace:*",
     "@kimigatari/types": "workspace:*",
     "@mastra/ai-sdk": "^0.3.2",
