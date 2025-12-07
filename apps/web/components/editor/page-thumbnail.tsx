@@ -2,7 +2,7 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical } from "lucide-react";
+import { GripVertical, X } from "lucide-react";
 import type { PageRow } from "@kimigatari/db";
 
 interface PageThumbnailProps {
@@ -10,6 +10,7 @@ interface PageThumbnailProps {
   index: number;
   isActive: boolean;
   onClick: () => void;
+  onDelete?: (pageId: string) => void;
 }
 
 export function PageThumbnail({
@@ -17,6 +18,7 @@ export function PageThumbnail({
   index,
   isActive,
   onClick,
+  onDelete,
 }: PageThumbnailProps) {
   // Get preview URL from image_url or layout_data
   const layoutData = page.layout_data as Array<{ imageUrl?: string }> | null;
@@ -42,8 +44,8 @@ export function PageThumbnail({
       ref={setNodeRef}
       style={style}
       className={`
-        group relative w-16 h-20 flex-shrink-0 rounded-lg overflow-hidden cursor-pointer
-        border-2 transition-all
+        group relative w-20 h-28 flex-shrink-0 rounded-lg overflow-hidden cursor-pointer
+        border transition-all
         ${
           isActive
             ? "border-primary ring-2 ring-primary/20"
@@ -67,6 +69,20 @@ export function PageThumbnail({
           </div>
         )}
       </div>
+
+      {/* Delete button */}
+      {onDelete && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(page.id);
+          }}
+          className="absolute top-1 left-1 p-0.5 rounded bg-destructive/90 opacity-0 group-hover:opacity-100 hover:bg-destructive cursor-pointer transition-opacity z-10"
+          title="ページを削除"
+        >
+          <X className="w-3 h-3 text-destructive-foreground" />
+        </button>
+      )}
 
       {/* Drag handle */}
       <div

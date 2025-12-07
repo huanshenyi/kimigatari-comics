@@ -25,6 +25,9 @@ const exporter = new LangfuseExporter({
 });
 
 export const mastra = new Mastra({
+  bundler: {
+    externals: ["@google/genai"],
+  },
   agents: {
     storyAnalyzer: storyAnalyzerAgent,
     panelLayout: panelLayoutAgent,

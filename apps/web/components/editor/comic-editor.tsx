@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { arrayMove } from "@dnd-kit/sortable";
 import type { DragEndEvent } from "@dnd-kit/core";
@@ -21,6 +21,7 @@ import { PageStrip } from "./page-strip";
 import { AddPageModal } from "./add-page-modal";
 import { GenerationProgress } from "./generation-progress";
 import { ExportDialog } from "./export-dialog";
+import { DeletePageDialog } from "./delete-page-dialog";
 import { ProjectAssets } from "@/components/assets/project-assets";
 import {
   createPage,
@@ -72,6 +73,8 @@ export function ComicEditor({ project, initialPages }: ComicEditorProps) {
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [isAddPageModalOpen, setIsAddPageModalOpen] = useState(false);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [pageToDelete, setPageToDelete] = useState<{ id: string; number: number } | null>(null);
   const [isAssetPanelOpen, setIsAssetPanelOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [title, setTitle] = useState(project.title);
@@ -92,6 +95,30 @@ export function ComicEditor({ project, initialPages }: ComicEditorProps) {
   });
 
   const currentPage = pages[currentPageIndex];
+
+  // Keyboard navigation: Arrow keys to navigate between pages
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Disable keyboard navigation when modals or text editing is active
+      if (isEditingTitle || isAddPageModalOpen || isDeleteDialogOpen || isExportDialogOpen) {
+        return;
+      }
+
+      // Navigate to previous page with ArrowLeft
+      if (e.key === "ArrowLeft" && currentPageIndex > 0) {
+        e.preventDefault();
+        setCurrentPageIndex(currentPageIndex - 1);
+      }
+      // Navigate to next page with ArrowRight
+      else if (e.key === "ArrowRight" && currentPageIndex < pages.length - 1) {
+        e.preventDefault();
+        setCurrentPageIndex(currentPageIndex + 1);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [currentPageIndex, pages.length, isEditingTitle, isAddPageModalOpen, isDeleteDialogOpen, isExportDialogOpen]);
 
   // Handle drag end for page reordering
   const handleDragEnd = useCallback(
@@ -303,25 +330,49 @@ export function ComicEditor({ project, initialPages }: ComicEditorProps) {
     [currentPage]
   );
 
-  // Handle page delete
-  const handlePageDelete = useCallback(
-    async (pageId: string) => {
-      try {
-        await deletePageAction(pageId);
-
-        const newPages = pages.filter((p) => p.id !== pageId);
-        setPages(newPages);
-
-        // Adjust current index
-        if (currentPageIndex >= newPages.length) {
-          setCurrentPageIndex(Math.max(0, newPages.length - 1));
-        }
-      } catch (error) {
-        console.error("Failed to delete page:", error);
+  // Handle delete click - open confirmation dialog
+  const handleDeleteClick = useCallback(
+    (pageId: string) => {
+      const pageIndex = pages.findIndex((p) => p.id === pageId);
+      if (pageIndex !== -1) {
+        setPageToDelete({
+          id: pageId,
+          number: pageIndex + 1,
+        });
+        setIsDeleteDialogOpen(true);
       }
     },
-    [pages, currentPageIndex]
+    [pages]
   );
+
+  // Handle confirmed page delete
+  const handleConfirmDelete = useCallback(async () => {
+    if (!pageToDelete) return;
+
+    try {
+      await deletePageAction(pageToDelete.id);
+
+      const newPages = pages.filter((p) => p.id !== pageToDelete.id);
+      setPages(newPages);
+
+      // Adjust current index
+      if (currentPageIndex >= newPages.length) {
+        setCurrentPageIndex(Math.max(0, newPages.length - 1));
+      }
+
+      // Close dialog
+      setIsDeleteDialogOpen(false);
+      setPageToDelete(null);
+    } catch (error) {
+      console.error("Failed to delete page:", error);
+    }
+  }, [pageToDelete, pages, currentPageIndex]);
+
+  // Handle cancel delete
+  const handleCancelDelete = useCallback(() => {
+    setIsDeleteDialogOpen(false);
+    setPageToDelete(null);
+  }, []);
 
   // Handle export - エクスポートダイアログを開く
   const handleExport = useCallback(() => {
@@ -447,6 +498,7 @@ export function ComicEditor({ project, initialPages }: ComicEditorProps) {
         onPageSelect={setCurrentPageIndex}
         onDragEnd={handleDragEnd}
         onAddPage={() => setIsAddPageModalOpen(true)}
+        onDeletePage={handleDeleteClick}
       />
 
       {/* Add page modal */}
@@ -464,6 +516,14 @@ export function ComicEditor({ project, initialPages }: ComicEditorProps) {
         projectTitle={title}
         currentPageIndex={currentPageIndex}
         getCurrentPageDataUrl={getCurrentPageDataUrl}
+      />
+
+      {/* Delete confirmation dialog */}
+      <DeletePageDialog
+        open={isDeleteDialogOpen}
+        pageNumber={pageToDelete?.number || 0}
+        onConfirm={handleConfirmDelete}
+        onCancel={handleCancelDelete}
       />
 
       {/* Generation progress overlay */}
