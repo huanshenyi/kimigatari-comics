@@ -62,18 +62,22 @@ export function ProjectAssets({
       if (result.success && result.assets) {
         const loadedAssets = result.assets as ProjectAsset[];
         setAssets(loadedAssets);
-        onAssetsChange?.(loadedAssets);
       }
     } catch (error) {
       console.error("Failed to load project assets:", error);
     } finally {
       setIsLoading(false);
     }
-  }, [projectId, onAssetsChange]);
+  }, [projectId]);
 
   useEffect(() => {
     loadAssets();
   }, [loadAssets]);
+
+  // Notify parent of asset changes
+  useEffect(() => {
+    onAssetsChange?.(assets);
+  }, [assets, onAssetsChange]);
 
   // Remove asset from project
   const handleRemove = useCallback(
@@ -84,11 +88,7 @@ export function ProjectAssets({
       try {
         const result = await removeAssetFromProjectAction(projectId, assetId);
         if (result.success) {
-          setAssets((prev) => {
-            const updated = prev.filter((a) => a.id !== assetId);
-            onAssetsChange?.(updated);
-            return updated;
-          });
+          setAssets((prev) => prev.filter((a) => a.id !== assetId));
         }
       } catch (error) {
         console.error("Failed to remove asset:", error);
@@ -96,7 +96,7 @@ export function ProjectAssets({
         setRemovingId(null);
       }
     },
-    [projectId, onAssetsChange]
+    [projectId]
   );
 
   // Handle asset selection from picker
